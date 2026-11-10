@@ -168,6 +168,7 @@ class Call:
     status: int = 0
     answer: Any = None
     journal: str | None = None  # the journal file as it was when a trade call arrived
+    account: Json | None = None  # the account as it was when a trade call arrived
 
     @property
     def key(self) -> str | None:
@@ -227,8 +228,9 @@ class Broker:
     requests: dict[str, Json] = field(default_factory=dict[str, Json])
     keys: dict[str, str] = field(default_factory=dict[str, str])
     # How the next trade calls answer, in order. Empty means "fill".
-    # - "fill", "partial" (about half filled), "placed" (taken, no deal), "reject"
-    # - "pending" (pending, then completed on the request's second lookup), "pending_forever"
+    # - "fill", "partial" (about half filled), "placed" (taken, no deal: an order waits), "reject"
+    # - "pending" (pending, then completed on the request's second lookup), "pending_forever";
+    #   "placed+pending_forever" and the like hold a request that settles as the first part
     # - "lost": 503 engine_unavailable on every attempt, nothing recorded, so the outcome is unknown
     # - "executed_then_lost": executed and recorded, but the first answer is a 503; the same key
     #   then finds the request
@@ -264,6 +266,7 @@ class MockPipsocket:
         # Where the example keeps its journal (*-journal.jsonl), read when a trade call arrives.
         self.journal_dir: pathlib.Path | None = None
         self.start_positions: list[Json] = []
+        self.start_account: Json = {}
         self.sockets: list[web.WebSocketResponse] = []
         self.upgrades = 0
         self.lock = threading.Lock()
@@ -311,6 +314,7 @@ class MockPipsocket:
             self.problems = []
             self.journal_dir = None
             self.start_positions = []
+            self.start_account = {}
             self.upgrades = 0
 
     @property
@@ -386,8 +390,11 @@ class MockPipsocket:
             journals = sorted(self.journal_dir.glob("*-journal.jsonl"))
             call.journal = "".join(journal.read_text() for journal in journals)
         with self.lock:
+            if call.is_trade:
+                call.account = copy.deepcopy(self.broker.account)
             if not self.calls:
                 self.start_positions = copy.deepcopy(self.broker.positions)
+                self.start_account = copy.deepcopy(self.broker.account)
             self.calls.append(call)
             template, status, answer = self._route(
                 request.method, request.path[len(prefix) :] or "/", call
@@ -472,6 +479,18 @@ class MockPipsocket:
             case "GET", ["kill-switch"]:
                 return t + "/kill-switch", 200, copy.deepcopy(b.account["kill_switch"])
             case "POST", ["kill-switch"]:
+                if not b.terminal_running:
+                    # Engaged all the same; the sweep waits for the terminal.
+                    deviation = (call.body or {}).get("deviation", 20)
+                    b.account["kill_switch"] = {
+                        "deviation": deviation,
+                        "engaged": True,
+                        "since": 1794056825,
+                    }
+                    body = _refusal("account_not_connected") | {
+                        "kill_switch": copy.deepcopy(b.account["kill_switch"])
+                    }
+                    return t + "/kill-switch", 503, body
                 return t + "/kill-switch", 200, self._engage(call)
             case "DELETE", ["kill-switch"]:
                 b.account["kill_switch"] = {"deviation": None, "engaged": False, "since": None}
@@ -562,19 +581,22 @@ class MockPipsocket:
         request, effects = act(call)
         if isinstance(request, int):
             return request, effects  # a refusal (status, body): nothing recorded
-        if outcome == "reject" and effects is not None:
+        # "placed+pending_forever": placed, once it settles; held until then.
+        result, _, held = outcome.partition("+")
+        if result in ("pending", "pending_forever"):
+            result, held = "fill", result
+        if result == "reject" and effects is not None:
             self._reject(request, 10018)
             effects = None
-        elif outcome == "placed" and effects is not None:
-            self._placed_without_deal(request)
-            effects = None
-        elif outcome == "partial" and effects is not None:
+        elif result == "placed" and effects is not None:
+            effects = self._placed_without_deal(request)
+        elif result == "partial" and effects is not None:
             self._make_partial(request, effects)
         if effects is not None:
             self._apply(effects)
-        if outcome in ("pending", "pending_forever") and request["state"] != "rejected":
+        if held and request["state"] != "rejected":
             self._hold(request, effects)
-            if outcome == "pending":
+            if held == "pending":
                 self.broker.settles_after[request["request"]] = 2
         if key is not None:
             self.broker.keys[key] = request["request"]
@@ -585,12 +607,27 @@ class MockPipsocket:
             return 503, _refusal("engine_unavailable")
         return STATUS_FOR_STATE[request["state"]], copy.deepcopy(request)
 
-    def _placed_without_deal(self, request: Json) -> None:
-        """MT5 took it (10008) but made no deal: no position."""
+    def _placed_without_deal(self, request: Json) -> Json:
+        """MT5 took it (10008) but made no deal: an order waits on the account, no position."""
         result = request["result"]
+        sent = request["sent"]
         request["state"] = "placed"
         request["message"] = "The request was placed."
         result.update(retcode=10008, retcode_name=RETCODES[10008], deal=0, volume=0, price=0)
+        order = {
+            "comment": sent["comment"],
+            "magic": sent["magic"],
+            "position": 0,
+            "price_open": result["ask"] if sent["type"] == "buy" else result["bid"],
+            "sl": sent["sl"],
+            "symbol": sent["symbol"],
+            "ticket": result["order"],
+            "tp": sent["tp"],
+            "type": sent["type"],
+            "volume_current": sent["volume"],
+            "volume_initial": sent["volume"],
+        }
+        return {"add_orders": [order]}
 
     def _make_partial(self, request: Json, effects: Json) -> None:
         """MT5 filled part of it (10010): about half, in whole volume steps."""
@@ -672,6 +709,7 @@ class MockPipsocket:
         self.settled_now.append(request)
 
     def _apply(self, effects: Json) -> None:
+        self.broker.orders.extend(effects.get("add_orders", []))
         self.broker.positions.extend(effects.get("add_positions", []))
         self.broker.deals.extend(effects.get("add_deals", []))
         for position in effects.get("remove_positions", []):
@@ -680,6 +718,8 @@ class MockPipsocket:
             self.broker.orders.remove(order)
 
     def _unapply(self, effects: Json) -> None:
+        for order in effects.get("add_orders", []):
+            self.broker.orders.remove(order)
         for position in effects.get("add_positions", []):
             self.broker.positions.remove(position)
         for deal in effects.get("add_deals", []):

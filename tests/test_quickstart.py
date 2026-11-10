@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import pathlib
 from collections.abc import Callable
+from typing import Any
 
 import httpx
 import pytest
@@ -236,3 +237,25 @@ def test_an_earlier_runs_position_blocks_a_new_buy(
     assert "An earlier run left" in result.stderr
     assert mock.trades() == []
     assert len(mock.broker.positions) == 1  # left for the owner to look at, not closed blindly
+
+
+@pytest.mark.parametrize(
+    ("change", "says"),
+    [
+        ({"trade_mode": "real"}, "only on demo accounts"),
+        ({"login": 5058427999, "server": "ExampleBroker-Live"}, "login or server changed"),
+    ],
+)
+def test_reads_the_account_again_before_closing(
+    mock: MockPipsocket, quickstart: Callable[..., Run], change: dict[str, Any], says: str
+) -> None:
+    mock.broker.plan = ["pending"]
+    # Read at the start and before the buy; it changes while the buy is pending.
+    mock.broker.account_changes_after = (2, change)
+
+    result = quickstart()
+
+    assert result.code != 0
+    assert says in result.stderr
+    check_trades(mock, MAGIC)
+    assert len(mock.trades()) == 1  # the buy, on the demo account; no close on the changed one

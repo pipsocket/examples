@@ -13,7 +13,8 @@ MARKET_FILLINGS = ("fok", "ioc")
 def check_trades(mock: MockPipsocket, magic: int) -> None:
     """Fail if any trade the example sent breaks a rule.
 
-    - It went to a demo account.
+    - It reached a demo hedging account, the same login on the same server as when the example
+      started (judged by the account as it was when the trade arrived).
     - Its idempotency key was in the journal before the call arrived, and a key is only ever
       sent again with exactly the same call (a retry), never for a different trade.
     - An order is the symbol's smallest volume, with a filling mode the symbol lists that a
@@ -22,13 +23,17 @@ def check_trades(mock: MockPipsocket, magic: int) -> None:
       started), for no more volume than that position had, with a filling mode the symbol lists
       that a market order can use, and carries the example's magic number.
     """
-    assert mock.broker.account["trade_mode"] == "demo", "traded on an account that isn't demo"
+    started_on = (mock.start_account.get("login"), mock.start_account.get("server"))
     sent_with: dict[str, tuple[str, str, object]] = {}
     # Position ticket: (symbol, volume), for the positions the example may close.
     ours = {p["ticket"]: (p["symbol"], p["volume"]) for p in owned_at_start(mock, magic)}
     ours |= opened_by_orders(mock)
     prefix = f"/v1/accounts/{ACCOUNT}"
     for call in mock.trades():
+        account = call.account or {}
+        assert account["trade_mode"] == "demo", f"{call.path} reached an account that isn't demo"
+        assert account["margin_mode"] == "hedging", f"{call.path} reached a netting account"
+        assert (account["login"], account["server"]) == started_on, f"{call.path}: another login"
         key = call.key
         assert key, f"{call.method} {call.path} was sent without an idempotency key"
         assert call.journal is not None and key in journal_keys(call.journal), (

@@ -131,6 +131,10 @@ def settle_journal(acct: Account) -> None:
         if not request.final:
             raise Stop(f"An earlier trade ({request.id}) is still {request.state}.")
         print(f"An earlier trade settled: {request.id} {request.state}")
+        if not filled(request):
+            # The same rule as a trade sent now: anything but a fill is for you to look at. It is
+            # settled in the journal, so the next run goes on once you have.
+            raise Stop(f"An earlier trade ended {request.state}, not a fill: look at the account.")
 
 
 def send(acct: Account, intent: str, call: Callable[[str], TradeRequest]) -> TradeRequest:
@@ -174,7 +178,10 @@ class Bot:
         self.volume = symbol["volume_min"]
         self.needs_price = symbol.get("execution") in ("instant", "request")
         self.prices: list[float] = []
-        if any(order["magic"] == MAGIC for order in acct.orders.list()):
+
+    def check_orders(self) -> None:
+        """The bot never leaves an order waiting: one with its magic number needs a look."""
+        if any(order["magic"] == MAGIC for order in self.acct.orders.list()):
             raise Stop(f"A pending order with magic {MAGIC} is on the account: look at it first.")
 
     def check_account(self) -> AccountView:
@@ -210,8 +217,8 @@ class Bot:
             self.check_account()
             self.buy(tick["ask"])
         elif want == "flat" and held:
-            self.check_account()
             for position in held:
+                self.check_account()  # before each close: the account can change during one
                 self.close(position, tick["bid"])
 
     def buy(self, ask: float) -> None:
@@ -309,6 +316,7 @@ def main() -> None:
     try:
         bot = Bot(acct)  # checks the account before anything else
         settle_journal(acct)
+        bot.check_orders()
         print(f"Trading {bot.volume} {SYMBOL} with magic {MAGIC}. Ctrl+C stops.")
         step = 0
         while options.steps == 0 or step < options.steps:
@@ -320,13 +328,21 @@ def main() -> None:
     except KeyboardInterrupt:
         pass  # the usual way to stop it
     finally:
-        if options.kill_switch_on_exit:
-            engage_kill_switch(bot, acct)
-        elif bot is not None:
-            print(f"Stopped. Left as they are: {len(bot.mine())} of the bot's positions.")
-        if report_open_trades():
-            failure = failure or "Some trades have no known outcome yet."
-        lock.close()
+        try:
+            if options.kill_switch_on_exit:
+                engage_kill_switch(bot, acct)
+            elif bot is not None:
+                print(f"Stopped. Left as they are: {len(bot.mine())} of the bot's positions.")
+        except PipsocketError as error:
+            print(
+                f"Stopped. The bot's positions are unknown: the account couldn't be read ({error})"
+            )
+            failure = failure or "The account couldn't be read on exit."
+        finally:
+            # The journal is local: this runs whatever the account answered.
+            if report_open_trades():
+                failure = failure or "Some trades have no known outcome yet."
+            lock.close()
     if failure is not None:
         stop(failure)
 

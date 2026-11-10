@@ -17,6 +17,7 @@ from typing import Any, Literal, NoReturn
 import pipsocket
 from pipsocket import OutcomeUnknown, Pipsocket, PipsocketError, TradeRequest
 from pipsocket.client import Account
+from pipsocket.types import AccountView
 
 ACCOUNT = os.environ["PIPSOCKET_ACCOUNT"]
 SYMBOL = os.environ.get("PIPSOCKET_SYMBOL", "EURUSD")  # exactly as your broker names it
@@ -99,6 +100,24 @@ def send(acct: Account, intent: str, call: Callable[[str], TradeRequest]) -> Tra
     return request
 
 
+def check_account(account: AccountView, started_on: tuple[int, str]) -> None:
+    """Stop unless the account can be traded here. Run on a fresh read before every trade: an
+    account can change while the script waits (its owner logs it in elsewhere, say)."""
+    if account.get("trade_mode") != "demo":
+        stop(
+            f"This account's trade mode is {account.get('trade_mode')!r}. "
+            "The quickstart trades only on demo accounts."
+        )
+    if account.get("margin_mode") != "hedging":
+        # On a netting account a position holds every trade's volume on its symbol, so closing
+        # "this script's" position would close other trades too.
+        stop("The quickstart trades only hedging accounts.")
+    if (account["login"], account["server"]) != started_on:
+        stop("The account's login or server changed since the script started: not trading on it.")
+    if account["status"] != "connected" or not account.get("trade_allowed"):
+        stop("The account isn't ready to trade: it must be connected with trading allowed.")
+
+
 def main() -> None:
     # PIPSOCKET_BASE_URL is for tests against a local mock; leave it unset.
     ps = Pipsocket(base_url=os.environ.get("PIPSOCKET_BASE_URL"))  # reads PIPSOCKET_KEY
@@ -109,17 +128,8 @@ def main() -> None:
         f"Account {account['login']} on {account['server']}: {account['status']}, "
         f"balance {account.get('balance')} {account.get('currency')}"
     )
-    if account.get("trade_mode") != "demo":
-        stop(
-            f"This account's trade mode is {account.get('trade_mode')!r}. "
-            "The quickstart trades only on demo accounts."
-        )
-    if account.get("margin_mode") != "hedging":
-        # On a netting account a position holds every trade's volume on its symbol, so closing
-        # "this script's" position would close other trades too.
-        stop("The quickstart trades only hedging accounts.")
-    if account["status"] != "connected" or not account.get("trade_allowed"):
-        stop("The account isn't ready to trade: it must be connected with trading allowed.")
+    started_on = (account["login"], account["server"])
+    check_account(account, started_on)
 
     settle_journal(acct)
     # A position or order from an earlier run (one that crashed, or settled late) comes first.
@@ -142,6 +152,7 @@ def main() -> None:
     volume = symbol["volume_min"]
     needs_price = symbol.get("execution") in ("instant", "request")
 
+    check_account(acct.get(), started_on)
     price = acct.symbols.tick(SYMBOL)["ask"] if needs_price else None
     order = send(
         acct,
@@ -182,6 +193,7 @@ def main() -> None:
     if not mine:
         print("Its position is already closed.")
     for position in mine:
+        check_account(acct.get(), started_on)
         price = acct.symbols.tick(SYMBOL)["bid"] if needs_price else None
         closed = send(
             acct,

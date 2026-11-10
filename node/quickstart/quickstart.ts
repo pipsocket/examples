@@ -7,6 +7,7 @@
 import { appendFileSync, closeSync, existsSync, fsyncSync, openSync, readFileSync } from "node:fs";
 import {
   type Account,
+  type AccountView,
   isFinal,
   isOutstanding,
   newKey,
@@ -65,6 +66,29 @@ function openEntries(): Entry[] {
     }
   }
   return [...entries.values()].filter((entry) => !entry.final);
+}
+
+/**
+ * Stop unless the account can be traded here. Run on a fresh read before every trade: an account can
+ * change while the script waits (its owner logs it in elsewhere, say).
+ */
+function checkAccount(account: AccountView): void {
+  if (account.trade_mode !== "demo") {
+    stop(
+      `This account's trade mode is ${JSON.stringify(account.trade_mode)}. The quickstart trades only on demo accounts.`,
+    );
+  }
+  if (account.margin_mode !== "hedging") {
+    // On a netting account a position holds every trade's volume on its symbol, so closing "this
+    // script's" position would close other trades too.
+    stop("The quickstart trades only hedging accounts.");
+  }
+  if (`${account.login} on ${account.server}` !== startedOn) {
+    stop("The account's login or server changed since the script started: not trading on it.");
+  }
+  if (account.status !== "connected" || !account.trade_allowed) {
+    stop("The account isn't ready to trade: it must be connected with trading allowed.");
+  }
 }
 
 /** Finish what an earlier run left open before trading again. */
@@ -127,19 +151,8 @@ const account = await acct.get();
 console.log(
   `Account ${account.login} on ${account.server}: ${account.status}, balance ${account.balance} ${account.currency}`,
 );
-if (account.trade_mode !== "demo") {
-  stop(
-    `This account's trade mode is ${JSON.stringify(account.trade_mode)}. The quickstart trades only on demo accounts.`,
-  );
-}
-if (account.margin_mode !== "hedging") {
-  // On a netting account a position holds every trade's volume on its symbol, so closing "this
-  // script's" position would close other trades too.
-  stop("The quickstart trades only hedging accounts.");
-}
-if (account.status !== "connected" || !account.trade_allowed) {
-  stop("The account isn't ready to trade: it must be connected with trading allowed.");
-}
+const startedOn = `${account.login} on ${account.server}`;
+checkAccount(account);
 
 // Ctrl+C: say what may still execute. The journal keeps it for the next run.
 process.once("SIGINT", () => {
@@ -168,6 +181,7 @@ if (symbol.trading !== "full") stop(`${SYMBOL} can't be bought and sold now (tra
 const volume = symbol.volume_min;
 const needsPrice = symbol.execution === "instant" || symbol.execution === "request";
 
+checkAccount(await acct.get());
 const buyPrice = needsPrice ? { price: (await acct.symbols.tick(SYMBOL)).ask, deviation: DEVIATION } : {};
 const order = await send(acct, `buy ${volume} ${SYMBOL}`, (key) =>
   acct.orders.place(
@@ -192,6 +206,7 @@ switch (order.kind) {
     const mine = (await acct.positions.list()).filter((p) => p.identifier === opened && p.magic === MAGIC);
     if (mine.length === 0) console.log("Its position is already closed.");
     for (const position of mine) {
+      checkAccount(await acct.get());
       const sellPrice = needsPrice ? { price: (await acct.symbols.tick(SYMBOL)).bid, deviation: DEVIATION } : {};
       const closed = await send(acct, `close ${position.volume} of position ${position.ticket}`, (key) =>
         acct.positions.close(
