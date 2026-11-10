@@ -103,7 +103,9 @@ function checkAccount(account: AccountView): void {
 
 /**
  * Hold the journal for this run, so two runs never start from the same journal at once. The lock
- * file is removed when the script exits; only a run killed outright (kill -9) leaves it behind.
+ * file is created only if it doesn't exist, holds this process's id, and is removed when the
+ * script exits (Ctrl+C and kill included). The Python quickstart uses the same file the same way,
+ * so the two never share a journal at once either. Only a run killed outright (kill -9) leaves it.
  */
 function lockJournal(): void {
   try {
@@ -111,11 +113,11 @@ function lockJournal(): void {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     stop(
-      `Another run of the quickstart (process ${readFileSync(LOCK, "utf8")}) is using ${JOURNAL} in this folder. ` +
-        `If it isn't running any more, delete ${LOCK}.`,
+      `Another run of the quickstart is using ${JOURNAL} in this folder. If none is running any more, delete ${LOCK}.`,
     );
   }
   process.once("exit", () => rmSync(LOCK, { force: true }));
+  process.once("SIGTERM", () => process.exit(143)); // so a plain kill exits cleanly
 }
 
 /** Finish what an earlier run left open before trading again. */

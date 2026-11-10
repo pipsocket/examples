@@ -6,7 +6,7 @@ Reads a demo account, buys the smallest volume the symbol allows, handles the ou
 - It takes the filling mode (`fok` or `ioc`) and the volume (`volume_min`) from the symbol, and stops if the symbol allows neither mode. Where the symbol executes on request or instantly, it sends the current price with a deviation.
 - Its orders carry magic number `4021`, and it only closes the position its own order opened. It won't buy while a position or pending order with that number is still on the account from an earlier run: close it first.
 - Each trade's idempotency key is written to `quickstart-journal.jsonl` before the trade is sent, and its outcome once known. A `pending` answer is followed with `requests.wait`. If the answer to a trade is lost, the entry stays open, and the next run stops until you have checked the account.
-- It reads the account again before each trade, and stops if it is no longer demo, connected with trading allowed, or on the same login and server. One run at a time uses the journal in a folder.
+- It reads the account again before each trade, and stops if it is no longer demo, connected with trading allowed, or on the same login and server. One run at a time uses the journal in a folder (`quickstart-journal.lock`, the same lock the TypeScript quickstart uses; delete it only if a run was killed outright and no run is going).
 - `completed` is not taken to mean filled: it looks for a deal in the result. After closing, it reads the positions again: a close can fill only in part, and then it says how much is left.
 - Ctrl+C while a trade has no outcome yet says which trade may still execute.
 

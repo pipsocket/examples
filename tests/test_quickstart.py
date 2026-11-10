@@ -261,18 +261,51 @@ def test_reads_the_account_again_before_closing(
     assert len(mock.trades()) == 1  # the buy, on the demo account; no close on the changed one
 
 
-@pytest.mark.parametrize("example", EXAMPLES)
-def test_one_run_at_a_time_per_journal(
-    mock: MockPipsocket, run: Runner, start: Callable[..., Running], example: str
+@pytest.mark.parametrize(
+    ("first_example", "second_example"),
+    [(first, second) for first in EXAMPLES for second in EXAMPLES],
+    ids=lambda path: path.split("/")[0],
+)
+def test_one_run_at_a_time_per_journal_in_either_language(
+    mock: MockPipsocket,
+    run: Runner,
+    start: Callable[..., Running],
+    first_example: str,
+    second_example: str,
 ) -> None:
     mock.broker.plan = ["pending_forever"]
-    first = start(example)
-    first.wait_for("waiting")  # its buy is pending
+    first = start(first_example)
+    first.wait_for("waiting")  # it holds the journal, and its buy is pending
 
-    second = run(example)
+    blocked = run(second_example)
 
-    assert second.code != 0
-    assert "Another run of the quickstart" in second.stderr
+    assert blocked.code != 0
+    assert "Another run of the quickstart" in blocked.stderr
     assert len(mock.trades()) == 1
+
     stopped = first.interrupt()
     assert "May still execute: buy" in stopped.stderr
+    [buy] = mock.trades()
+    mock.broker.settles_after[buy.answer["request"]] = 1
+
+    after = run(second_example)  # the journal is free, with the first run's buy in it
+
+    assert f"An earlier trade settled: {buy.answer['request']} completed" in after.stdout
+    assert "An earlier run left" in after.stderr  # its position is there: nothing more is sent
+    assert len(mock.trades()) == 1
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_a_plain_kill_frees_the_journal(
+    mock: MockPipsocket, start: Callable[..., Running], tmp_path: pathlib.Path, example: str
+) -> None:
+    mock.broker.plan = ["pending_forever"]
+    running = start(example)
+    running.wait_for("waiting")
+    assert (tmp_path / "quickstart-journal.lock").exists()
+
+    running.process.terminate()
+    running.process.wait(15)
+
+    assert not (tmp_path / "quickstart-journal.lock").exists()
+    assert "request" in (tmp_path / "quickstart-journal.jsonl").read_text()  # still open there

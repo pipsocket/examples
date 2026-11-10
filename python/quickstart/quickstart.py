@@ -7,12 +7,14 @@ position or order is still on the account.
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
 import pathlib
+import signal
 import sys
 from collections.abc import Callable
-from typing import IO, Any, Literal, NoReturn
+from typing import Any, Literal, NoReturn
 
 import pipsocket
 from pipsocket import OutcomeUnknown, Pipsocket, PipsocketError, TradeRequest
@@ -50,22 +52,30 @@ def note(entry: dict[str, Any]) -> None:
         os.fsync(file.fileno())
 
 
-def lock_journal() -> IO[str]:
+def lock_journal() -> None:
     """Hold the journal for this run, so two runs never start from the same journal at once.
-    The operating system lets go of the lock when the process ends, however it ends."""
-    file = LOCK.open("a")
+
+    The lock file is created only if it doesn't exist, holds this process's id, and is removed
+    when the script exits (Ctrl+C and kill included). The TypeScript quickstart uses the same
+    file the same way, so the two never share a journal at once either. Only a run killed
+    outright (kill -9) leaves it behind.
+    """
     try:
-        if sys.platform == "win32":
-            import msvcrt
+        lock = os.open(LOCK, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+    except FileExistsError:
+        stop(
+            f"Another run of the quickstart is using {JOURNAL} in this folder. "
+            f"If none is running any more, delete {LOCK}."
+        )
+    with os.fdopen(lock, "w") as file:
+        file.write(str(os.getpid()))
+    atexit.register(LOCK.unlink, missing_ok=True)
+    signal.signal(signal.SIGTERM, exit_on_kill)
 
-            msvcrt.locking(file.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
 
-            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        stop(f"Another run of the quickstart is using {JOURNAL} in this folder.")
-    return file
+def exit_on_kill(signum: int, frame: object) -> None:
+    """A plain kill (SIGTERM) exits as Ctrl+C does, so the lock is removed."""
+    sys.exit(143)
 
 
 def open_entries() -> list[dict[str, Any]]:
@@ -150,8 +160,8 @@ def main() -> None:
     started_on = (account["login"], account["server"])
     check_account(account, started_on)
 
-    with lock_journal():  # held until the round trip is done
-        round_trip(acct, started_on)
+    lock_journal()
+    round_trip(acct, started_on)
 
 
 def round_trip(acct: Account, started_on: tuple[int, str]) -> None:
