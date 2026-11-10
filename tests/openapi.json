@@ -1,0 +1,3520 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Pipsocket trading API",
+    "license": {
+      "name": ""
+    },
+    "version": "1"
+  },
+  "servers": [
+    {
+      "url": "https://api.pipsocket.com"
+    }
+  ],
+  "paths": {
+    "/v1/accounts/{account}": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "account",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/orders": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "pending_orders",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PendingOrderView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "place_order",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeConflict"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeRejected"
+                }
+              }
+            }
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeUnavailable"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/orders/check": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "check_order",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/orders/{order}": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "cancel_order",
+        "parameters": [
+          {
+            "name": "order",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeConflict"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeRejected"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeUnavailable"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "modify_order",
+        "parameters": [
+          {
+            "name": "order",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeConflict"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeRejected"
+                }
+              }
+            }
+          },
+          "423": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeUnavailable"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/positions": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Positions"
+        ],
+        "operationId": "positions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PositionView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/positions/{position}": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "tags": [
+          "Positions"
+        ],
+        "operationId": "set_position_levels",
+        "parameters": [
+          {
+            "name": "position",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PositionLevels"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeConflict"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeRejected"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeUnavailable"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/positions/{position}/close": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Positions"
+        ],
+        "operationId": "close_position",
+        "parameters": [
+          {
+            "name": "position",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClosePosition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeConflict"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeRejected"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeUnavailable"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/positions/{position}/close-by": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Positions"
+        ],
+        "operationId": "close_by",
+        "parameters": [
+          {
+            "name": "position",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseBy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "400": {},
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeConflict"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeRejected"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeUnavailable"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/requests/{request}": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "operationId": "request",
+        "parameters": [
+          {
+            "name": "request",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/symbols": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Symbols"
+        ],
+        "operationId": "symbols",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SymbolSummaryView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/symbols/{symbol}": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Symbols"
+        ],
+        "operationId": "symbol",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SymbolView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/symbols/{symbol}/tick": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Symbols"
+        ],
+        "operationId": "tick",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TickView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/history/deals": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "history_deals",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DealView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/history/orders": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "history_orders",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryOrderView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{account}/kill-switch": {
+      "parameters": [
+        {
+          "name": "account",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Kill switch"
+        ],
+        "operationId": "kill_switch",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillSwitchView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Kill switch"
+        ],
+        "operationId": "engage_kill_switch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/EngageKillSwitch"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillSwitchOutcome"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillSwitchUnavailable"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Kill switch"
+        ],
+        "operationId": "lift_kill_switch",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KillSwitchView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountView": {
+        "type": "object",
+        "required": [
+          "id",
+          "login",
+          "server",
+          "status",
+          "connected",
+          "kill_switch"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "login": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "server": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "trade_allowed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "company": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "leverage": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "margin_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "trade_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "balance": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "equity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "credit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "margin": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "margin_free": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "server_time": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "kill_switch": {
+            "$ref": "#/components/schemas/KillSwitchView"
+          }
+        }
+      },
+      "Action": {
+        "type": "string",
+        "enum": [
+          "deal",
+          "pending",
+          "sltp",
+          "modify",
+          "remove",
+          "close_by"
+        ]
+      },
+      "Blocking": {
+        "type": "object",
+        "required": [
+          "request",
+          "state"
+        ],
+        "properties": {
+          "request": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "CheckResult": {
+        "type": "object",
+        "required": [
+          "passed",
+          "retcode",
+          "retcode_name",
+          "comment",
+          "balance",
+          "equity",
+          "profit",
+          "margin",
+          "margin_free",
+          "margin_level"
+        ],
+        "properties": {
+          "passed": {
+            "type": "boolean"
+          },
+          "retcode": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "retcode_name": {
+            "type": "string",
+            "enum": [
+              "OK",
+              "TRADE_RETCODE_REQUOTE",
+              "TRADE_RETCODE_REJECT",
+              "TRADE_RETCODE_CANCEL",
+              "TRADE_RETCODE_PLACED",
+              "TRADE_RETCODE_DONE",
+              "TRADE_RETCODE_DONE_PARTIAL",
+              "TRADE_RETCODE_ERROR",
+              "TRADE_RETCODE_TIMEOUT",
+              "TRADE_RETCODE_INVALID",
+              "TRADE_RETCODE_INVALID_VOLUME",
+              "TRADE_RETCODE_INVALID_PRICE",
+              "TRADE_RETCODE_INVALID_STOPS",
+              "TRADE_RETCODE_TRADE_DISABLED",
+              "TRADE_RETCODE_MARKET_CLOSED",
+              "TRADE_RETCODE_NO_MONEY",
+              "TRADE_RETCODE_PRICE_CHANGED",
+              "TRADE_RETCODE_PRICE_OFF",
+              "TRADE_RETCODE_INVALID_EXPIRATION",
+              "TRADE_RETCODE_ORDER_CHANGED",
+              "TRADE_RETCODE_TOO_MANY_REQUESTS",
+              "TRADE_RETCODE_NO_CHANGES",
+              "TRADE_RETCODE_SERVER_DISABLES_AT",
+              "TRADE_RETCODE_CLIENT_DISABLES_AT",
+              "TRADE_RETCODE_LOCKED",
+              "TRADE_RETCODE_FROZEN",
+              "TRADE_RETCODE_INVALID_FILL",
+              "TRADE_RETCODE_CONNECTION",
+              "TRADE_RETCODE_ONLY_REAL",
+              "TRADE_RETCODE_LIMIT_ORDERS",
+              "TRADE_RETCODE_LIMIT_VOLUME",
+              "TRADE_RETCODE_INVALID_ORDER",
+              "TRADE_RETCODE_POSITION_CLOSED",
+              "TRADE_RETCODE_INVALID_CLOSE_VOLUME",
+              "TRADE_RETCODE_CLOSE_ORDER_EXIST",
+              "TRADE_RETCODE_LIMIT_POSITIONS",
+              "TRADE_RETCODE_REJECT_CANCEL",
+              "TRADE_RETCODE_LONG_ONLY",
+              "TRADE_RETCODE_SHORT_ONLY",
+              "TRADE_RETCODE_CLOSE_ONLY",
+              "TRADE_RETCODE_FIFO_CLOSE",
+              "TRADE_RETCODE_HEDGE_PROHIBITED",
+              "UNKNOWN"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "margin": {
+            "type": "number",
+            "format": "double"
+          },
+          "margin_free": {
+            "type": "number",
+            "format": "double"
+          },
+          "margin_level": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "CheckView": {
+        "type": "object",
+        "required": [
+          "sent",
+          "result",
+          "message"
+        ],
+        "properties": {
+          "sent": {
+            "$ref": "#/components/schemas/TradeRequest"
+          },
+          "result": {
+            "$ref": "#/components/schemas/CheckResult"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "CloseBy": {
+        "type": "object",
+        "required": [
+          "position_by"
+        ],
+        "properties": {
+          "position_by": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClosePosition": {
+        "type": "object",
+        "required": [
+          "volume",
+          "type_filling"
+        ],
+        "properties": {
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "type_filling": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Filling"
+              }
+            ]
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "deviation": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "magic": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 31
+          }
+        },
+        "additionalProperties": false
+      },
+      "DealView": {
+        "type": "object",
+        "required": [
+          "ticket",
+          "order",
+          "position",
+          "symbol",
+          "entry",
+          "reason",
+          "volume",
+          "price",
+          "profit",
+          "commission",
+          "swap",
+          "fee",
+          "magic",
+          "comment",
+          "time_msc"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "order": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "buy",
+              "sell",
+              "balance",
+              "credit",
+              "charge",
+              "correction",
+              "bonus",
+              "commission",
+              "commission_daily",
+              "commission_monthly",
+              "commission_agent_daily",
+              "commission_agent_monthly",
+              "interest",
+              "buy_canceled",
+              "sell_canceled",
+              "dividend",
+              "dividend_franked",
+              "tax",
+              null
+            ]
+          },
+          "entry": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out",
+              "inout",
+              "out_by"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "client",
+              "mobile",
+              "web",
+              "expert",
+              "sl",
+              "tp",
+              "so",
+              "other"
+            ]
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "commission": {
+            "type": "number",
+            "format": "double"
+          },
+          "swap": {
+            "type": "number",
+            "format": "double"
+          },
+          "fee": {
+            "type": "number",
+            "format": "double"
+          },
+          "magic": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "time_msc": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "EngageKillSwitch": {
+        "type": "object",
+        "properties": {
+          "deviation": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Filling": {
+        "type": "string",
+        "enum": [
+          "fok",
+          "ioc",
+          "return",
+          "boc"
+        ]
+      },
+      "HandSettlement": {
+        "type": "object",
+        "required": [
+          "outcome",
+          "settled_by",
+          "reason"
+        ],
+        "properties": {
+          "outcome": {
+            "type": "string"
+          },
+          "settled_by": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "HistoryOrderView": {
+        "type": "object",
+        "required": [
+          "ticket",
+          "symbol",
+          "volume_initial",
+          "volume_current",
+          "price_open",
+          "magic",
+          "comment",
+          "position",
+          "time_setup_msc",
+          "time_done_msc"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "type": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "started",
+              "placed",
+              "canceled",
+              "partial",
+              "filled",
+              "rejected",
+              "expired",
+              "request_add",
+              "request_modify",
+              "request_cancel",
+              null
+            ]
+          },
+          "volume_initial": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume_current": {
+            "type": "number",
+            "format": "double"
+          },
+          "price_open": {
+            "type": "number",
+            "format": "double"
+          },
+          "magic": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "time_setup_msc": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "time_done_msc": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "KillSwitchNotConnected": {
+        "type": "object",
+        "required": [
+          "error",
+          "kill_switch",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "kill_switch": {
+            "$ref": "#/components/schemas/KillSwitchView"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "KillSwitchOutcome": {
+        "type": "object",
+        "required": [
+          "flat",
+          "cancelled",
+          "closed",
+          "unanswered",
+          "kill_switch",
+          "message"
+        ],
+        "properties": {
+          "flat": {
+            "type": "boolean"
+          },
+          "cancelled": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SweptOrder"
+            }
+          },
+          "closed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SweptPosition"
+            }
+          },
+          "remaining": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Remaining"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unanswered": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "kill_switch": {
+            "$ref": "#/components/schemas/KillSwitchView"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "KillSwitchUnavailable": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ErrorBody"
+          },
+          {
+            "$ref": "#/components/schemas/KillSwitchNotConnected"
+          }
+        ]
+      },
+      "KillSwitchView": {
+        "type": "object",
+        "required": [
+          "engaged"
+        ],
+        "properties": {
+          "engaged": {
+            "type": "boolean"
+          },
+          "since": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "deviation": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "ModifyOrder": {
+        "type": "object",
+        "required": [
+          "price",
+          "sl",
+          "tp",
+          "type_time"
+        ],
+        "properties": {
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "sl": {
+            "type": "number",
+            "format": "double"
+          },
+          "tp": {
+            "type": "number",
+            "format": "double"
+          },
+          "type_time": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TypeTime"
+              }
+            ]
+          },
+          "stoplimit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "expiration": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrderType": {
+        "type": "string",
+        "enum": [
+          "buy",
+          "sell",
+          "buy_limit",
+          "sell_limit",
+          "buy_stop",
+          "sell_stop",
+          "buy_stop_limit",
+          "sell_stop_limit",
+          "close_by"
+        ]
+      },
+      "PendingOrderView": {
+        "type": "object",
+        "required": [
+          "ticket",
+          "symbol",
+          "volume_initial",
+          "volume_current",
+          "price_open",
+          "sl",
+          "tp",
+          "magic",
+          "comment",
+          "position"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "type": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "volume_initial": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume_current": {
+            "type": "number",
+            "format": "double"
+          },
+          "price_open": {
+            "type": "number",
+            "format": "double"
+          },
+          "sl": {
+            "type": "number",
+            "format": "double"
+          },
+          "tp": {
+            "type": "number",
+            "format": "double"
+          },
+          "magic": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "PlaceOrder": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "type",
+          "volume",
+          "type_filling"
+        ],
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OrderType"
+              }
+            ]
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "type_filling": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Filling"
+              }
+            ]
+          },
+          "price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "stoplimit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "sl": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "tp": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "deviation": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "type_time": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TypeTime"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiration": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "magic": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 31
+          }
+        },
+        "additionalProperties": false
+      },
+      "PositionLevels": {
+        "type": "object",
+        "required": [
+          "sl",
+          "tp"
+        ],
+        "properties": {
+          "sl": {
+            "type": "number",
+            "format": "double"
+          },
+          "tp": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PositionView": {
+        "type": "object",
+        "required": [
+          "ticket",
+          "identifier",
+          "symbol",
+          "type",
+          "volume",
+          "price_open",
+          "sl",
+          "tp",
+          "magic",
+          "comment",
+          "time_msc"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "identifier": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "sell"
+            ]
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price_open": {
+            "type": "number",
+            "format": "double"
+          },
+          "sl": {
+            "type": "number",
+            "format": "double"
+          },
+          "tp": {
+            "type": "number",
+            "format": "double"
+          },
+          "magic": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "comment": {
+            "type": "string"
+          },
+          "time_msc": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Remaining": {
+        "type": "object",
+        "required": [
+          "positions",
+          "orders"
+        ],
+        "properties": {
+          "positions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "orders": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "RequestResult": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TradeResult"
+          },
+          {
+            "$ref": "#/components/schemas/ErrorBody"
+          },
+          {
+            "$ref": "#/components/schemas/HandSettlement"
+          }
+        ]
+      },
+      "RequestState": {
+        "type": "string",
+        "enum": [
+          "completed",
+          "placed",
+          "partial",
+          "rejected",
+          "pending",
+          "unknown",
+          "not_sent",
+          "not_executed",
+          "executed"
+        ]
+      },
+      "RequestView": {
+        "type": "object",
+        "required": [
+          "request",
+          "state",
+          "sent",
+          "message"
+        ],
+        "properties": {
+          "request": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/RequestState"
+          },
+          "sent": {
+            "$ref": "#/components/schemas/TradeRequest"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RequestResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "settlement": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Settlement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Settlement": {
+        "type": "string",
+        "enum": [
+          "evidence",
+          "operator"
+        ]
+      },
+      "SweptOrder": {
+        "type": "object",
+        "required": [
+          "order",
+          "request"
+        ],
+        "properties": {
+          "order": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "request": {
+            "$ref": "#/components/schemas/RequestView"
+          }
+        }
+      },
+      "SweptPosition": {
+        "type": "object",
+        "required": [
+          "position",
+          "request"
+        ],
+        "properties": {
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "request": {
+            "$ref": "#/components/schemas/RequestView"
+          }
+        }
+      },
+      "SymbolBusy": {
+        "type": "object",
+        "required": [
+          "error",
+          "message",
+          "not_sent",
+          "blocking"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "not_sent": {
+            "type": "boolean"
+          },
+          "blocking": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Blocking"
+            }
+          }
+        }
+      },
+      "SymbolSummaryView": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "path",
+          "available",
+          "digits",
+          "contract_size",
+          "currency_base",
+          "currency_profit",
+          "currency_margin",
+          "volume_min",
+          "volume_max",
+          "volume_step",
+          "in_market_watch"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "digits": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "contract_size": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency_base": {
+            "type": "string"
+          },
+          "currency_profit": {
+            "type": "string"
+          },
+          "currency_margin": {
+            "type": "string"
+          },
+          "trading": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "disabled",
+              "long_only",
+              "short_only",
+              "close_only",
+              "full",
+              null
+            ]
+          },
+          "volume_min": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume_max": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume_step": {
+            "type": "number",
+            "format": "double"
+          },
+          "in_market_watch": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SymbolView": {
+        "type": "object",
+        "required": [
+          "name",
+          "available",
+          "description",
+          "digits",
+          "point",
+          "tick_size",
+          "tick_value",
+          "contract_size",
+          "volume_min",
+          "volume_max",
+          "volume_step",
+          "stops_level",
+          "freeze_level",
+          "filling_mode",
+          "trade_mode",
+          "execution_mode",
+          "order_mode",
+          "expiration_mode",
+          "currency_base",
+          "currency_profit",
+          "currency_margin",
+          "filling_modes",
+          "order_types",
+          "expirations"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "digits": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "point": {
+            "type": "number",
+            "format": "double"
+          },
+          "tick_size": {
+            "type": "number",
+            "format": "double"
+          },
+          "tick_value": {
+            "type": "number",
+            "format": "double"
+          },
+          "contract_size": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume_min": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume_max": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume_step": {
+            "type": "number",
+            "format": "double"
+          },
+          "stops_level": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "freeze_level": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "filling_mode": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "trade_mode": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "execution_mode": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order_mode": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expiration_mode": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency_base": {
+            "type": "string"
+          },
+          "currency_profit": {
+            "type": "string"
+          },
+          "currency_margin": {
+            "type": "string"
+          },
+          "filling_modes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "fok",
+                "ioc",
+                "boc"
+              ]
+            }
+          },
+          "execution": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "request",
+              "instant",
+              "market",
+              "exchange",
+              null
+            ]
+          },
+          "order_types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "market",
+                "limit",
+                "stop",
+                "stop_limit",
+                "sl",
+                "tp",
+                "close_by"
+              ]
+            }
+          },
+          "expirations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "gtc",
+                "day",
+                "specified",
+                "specified_day"
+              ]
+            }
+          },
+          "trading": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "disabled",
+              "long_only",
+              "short_only",
+              "close_only",
+              "full",
+              null
+            ]
+          }
+        }
+      },
+      "TickView": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "bid",
+          "ask"
+        ],
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          },
+          "time_msc": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "last": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "volume": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "flags": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "TradeConflict": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SymbolBusy"
+          },
+          {
+            "$ref": "#/components/schemas/RequestView"
+          }
+        ]
+      },
+      "TradeRejected": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ErrorBody"
+          },
+          {
+            "$ref": "#/components/schemas/RequestView"
+          }
+        ]
+      },
+      "TradeRequest": {
+        "type": "object",
+        "required": [
+          "action",
+          "symbol",
+          "type",
+          "volume",
+          "price",
+          "stoplimit",
+          "sl",
+          "tp",
+          "deviation",
+          "type_filling",
+          "type_time",
+          "expiration",
+          "order",
+          "position",
+          "position_by",
+          "magic",
+          "comment"
+        ],
+        "properties": {
+          "action": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Action"
+              }
+            ]
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OrderType"
+              }
+            ]
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "stoplimit": {
+            "type": "number",
+            "format": "double"
+          },
+          "sl": {
+            "type": "number",
+            "format": "double"
+          },
+          "tp": {
+            "type": "number",
+            "format": "double"
+          },
+          "deviation": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "type_filling": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Filling"
+              }
+            ]
+          },
+          "type_time": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TypeTime"
+              }
+            ]
+          },
+          "expiration": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "order": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "position_by": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "magic": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "comment": {
+            "type": "string"
+          }
+        }
+      },
+      "TradeResult": {
+        "type": "object",
+        "required": [
+          "retcode",
+          "retcode_name",
+          "comment",
+          "order",
+          "deal",
+          "position",
+          "volume",
+          "price",
+          "bid",
+          "ask",
+          "retcode_external"
+        ],
+        "properties": {
+          "retcode": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "retcode_name": {
+            "type": "string",
+            "enum": [
+              "OK",
+              "TRADE_RETCODE_REQUOTE",
+              "TRADE_RETCODE_REJECT",
+              "TRADE_RETCODE_CANCEL",
+              "TRADE_RETCODE_PLACED",
+              "TRADE_RETCODE_DONE",
+              "TRADE_RETCODE_DONE_PARTIAL",
+              "TRADE_RETCODE_ERROR",
+              "TRADE_RETCODE_TIMEOUT",
+              "TRADE_RETCODE_INVALID",
+              "TRADE_RETCODE_INVALID_VOLUME",
+              "TRADE_RETCODE_INVALID_PRICE",
+              "TRADE_RETCODE_INVALID_STOPS",
+              "TRADE_RETCODE_TRADE_DISABLED",
+              "TRADE_RETCODE_MARKET_CLOSED",
+              "TRADE_RETCODE_NO_MONEY",
+              "TRADE_RETCODE_PRICE_CHANGED",
+              "TRADE_RETCODE_PRICE_OFF",
+              "TRADE_RETCODE_INVALID_EXPIRATION",
+              "TRADE_RETCODE_ORDER_CHANGED",
+              "TRADE_RETCODE_TOO_MANY_REQUESTS",
+              "TRADE_RETCODE_NO_CHANGES",
+              "TRADE_RETCODE_SERVER_DISABLES_AT",
+              "TRADE_RETCODE_CLIENT_DISABLES_AT",
+              "TRADE_RETCODE_LOCKED",
+              "TRADE_RETCODE_FROZEN",
+              "TRADE_RETCODE_INVALID_FILL",
+              "TRADE_RETCODE_CONNECTION",
+              "TRADE_RETCODE_ONLY_REAL",
+              "TRADE_RETCODE_LIMIT_ORDERS",
+              "TRADE_RETCODE_LIMIT_VOLUME",
+              "TRADE_RETCODE_INVALID_ORDER",
+              "TRADE_RETCODE_POSITION_CLOSED",
+              "TRADE_RETCODE_INVALID_CLOSE_VOLUME",
+              "TRADE_RETCODE_CLOSE_ORDER_EXIST",
+              "TRADE_RETCODE_LIMIT_POSITIONS",
+              "TRADE_RETCODE_REJECT_CANCEL",
+              "TRADE_RETCODE_LONG_ONLY",
+              "TRADE_RETCODE_SHORT_ONLY",
+              "TRADE_RETCODE_CLOSE_ONLY",
+              "TRADE_RETCODE_FIFO_CLOSE",
+              "TRADE_RETCODE_HEDGE_PROHIBITED",
+              "UNKNOWN"
+            ]
+          },
+          "comment": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "deal": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          },
+          "retcode_external": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "TradeUnavailable": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ErrorBody"
+          },
+          {
+            "$ref": "#/components/schemas/RequestView"
+          }
+        ]
+      },
+      "TypeTime": {
+        "type": "string",
+        "enum": [
+          "gtc",
+          "day",
+          "specified",
+          "specified_day"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "api_key": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "api_key": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Orders"
+    },
+    {
+      "name": "Positions"
+    },
+    {
+      "name": "Account"
+    },
+    {
+      "name": "Symbols"
+    },
+    {
+      "name": "History"
+    },
+    {
+      "name": "Kill switch"
+    }
+  ]
+}

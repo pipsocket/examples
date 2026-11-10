@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directories:
+      - /
+      - /python/quickstart
+      - /python/stream-ticks
+      - /python/bot-skeleton
+      - /python/history-pandas
+    schedule:
+      interval: monthly
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /node/quickstart
+      - /node/stream-ticks
+      - /node/worker
+    schedule:
+      interval: monthly
+    groups:
+      node:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
