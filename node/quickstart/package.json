@@ -14,7 +14,7 @@
     "pipsocket": "0.1.0"
   },
   "devDependencies": {
-    "@types/node": "22.20.5",
-    "typescript": "5.9.3"
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
   }
 }
