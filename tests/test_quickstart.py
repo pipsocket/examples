@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 import pytest
-from conftest import Run
+from conftest import Run, Running
 from mock_pipsocket import ACCOUNT, KEY, MockPipsocket, symbol_spec
 from safety import check_trades
 
@@ -259,3 +259,20 @@ def test_reads_the_account_again_before_closing(
     assert says in result.stderr
     check_trades(mock, MAGIC)
     assert len(mock.trades()) == 1  # the buy, on the demo account; no close on the changed one
+
+
+@pytest.mark.parametrize("example", EXAMPLES)
+def test_one_run_at_a_time_per_journal(
+    mock: MockPipsocket, run: Runner, start: Callable[..., Running], example: str
+) -> None:
+    mock.broker.plan = ["pending_forever"]
+    first = start(example)
+    first.wait_for("waiting")  # its buy is pending
+
+    second = run(example)
+
+    assert second.code != 0
+    assert "Another run of the quickstart" in second.stderr
+    assert len(mock.trades()) == 1
+    stopped = first.interrupt()
+    assert "May still execute: buy" in stopped.stderr

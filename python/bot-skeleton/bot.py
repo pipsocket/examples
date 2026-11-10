@@ -131,10 +131,13 @@ def settle_journal(acct: Account) -> None:
         if not request.final:
             raise Stop(f"An earlier trade ({request.id}) is still {request.state}.")
         print(f"An earlier trade settled: {request.id} {request.state}")
-        if not filled(request):
-            # The same rule as a trade sent now: anything but a fill is for you to look at. It is
-            # settled in the journal, so the next run goes on once you have.
-            raise Stop(f"An earlier trade ended {request.state}, not a fill: look at the account.")
+        if not filled(request) or request.state == "partial":
+            # Stricter than a trade sent now: anything but a full fill is for you to look at
+            # (a partial close leaves part of a position). It is settled in the journal, so the
+            # next run goes on once you have.
+            raise Stop(
+                f"An earlier trade ended {request.state}, not a full fill: look at the account."
+            )
 
 
 def send(acct: Account, intent: str, call: Callable[[str], TradeRequest]) -> TradeRequest:
@@ -184,8 +187,10 @@ class Bot:
         if any(order["magic"] == MAGIC for order in self.acct.orders.list()):
             raise Stop(f"A pending order with magic {MAGIC} is on the account: look at it first.")
 
-    def check_account(self) -> AccountView:
-        """The account, read fresh: still demo, hedging, and the same login on the same server."""
+    def check_account(self, *, ready: bool = True) -> AccountView:
+        """The account, read fresh: still demo, hedging, and the same login on the same server.
+        With `ready`, also connected with trading allowed, as it must be for a buy or a close
+        (the kill switch engages without it: it sweeps once the terminal is back)."""
         account = self.acct.get()
         if account.get("trade_mode") != "demo":
             raise Stop(f"The account's trade mode is {account.get('trade_mode')!r}, not demo.")
@@ -194,6 +199,8 @@ class Bot:
             raise Stop("The bot trades only hedging accounts.")
         if self.identity not in (None, (account["login"], account["server"])):
             raise Stop("The account's login or server changed: its positions aren't the bot's.")
+        if ready and (account["status"] != "connected" or not account.get("trade_allowed")):
+            raise Stop(f"The account isn't ready to trade (status {account['status']}).")
         return account
 
     def mine(self) -> list[PositionView]:
@@ -262,7 +269,7 @@ def engage_kill_switch(bot: Bot | None, acct: Account) -> None:
         print("Not engaging the kill switch: the bot never started trading.")
         return
     try:
-        bot.check_account()
+        bot.check_account(ready=False)
     except Stop as error:
         print(f"Not engaging the kill switch: {error}")
         return

@@ -13,8 +13,9 @@ MARKET_FILLINGS = ("fok", "ioc")
 def check_trades(mock: MockPipsocket, magic: int) -> None:
     """Fail if any trade the example sent breaks a rule.
 
-    - It reached a demo hedging account, the same login on the same server as when the example
-      started (judged by the account as it was when the trade arrived).
+    - It reached a demo hedging account, connected with trading allowed, the same login on the
+      same server as when the example started (judged by the account as it was when the trade
+      arrived).
     - Its idempotency key was in the journal before the call arrived, and a key is only ever
       sent again with exactly the same call (a retry), never for a different trade.
     - An order is the symbol's smallest volume, with a filling mode the symbol lists that a
@@ -34,6 +35,9 @@ def check_trades(mock: MockPipsocket, magic: int) -> None:
         assert account["trade_mode"] == "demo", f"{call.path} reached an account that isn't demo"
         assert account["margin_mode"] == "hedging", f"{call.path} reached a netting account"
         assert (account["login"], account["server"]) == started_on, f"{call.path}: another login"
+        assert account["status"] == "connected" and account["trade_allowed"], (
+            f"{call.path}: not ready"
+        )
         key = call.key
         assert key, f"{call.method} {call.path} was sent without an idempotency key"
         assert call.journal is not None and key in journal_keys(call.journal), (

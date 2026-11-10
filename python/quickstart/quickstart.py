@@ -12,7 +12,7 @@ import os
 import pathlib
 import sys
 from collections.abc import Callable
-from typing import Any, Literal, NoReturn
+from typing import IO, Any, Literal, NoReturn
 
 import pipsocket
 from pipsocket import OutcomeUnknown, Pipsocket, PipsocketError, TradeRequest
@@ -24,6 +24,7 @@ SYMBOL = os.environ.get("PIPSOCKET_SYMBOL", "EURUSD")  # exactly as your broker 
 MAGIC = 4021  # this script's own number: MT5 keeps it on the order, its deals and its position
 DEVIATION = 20  # points, for symbols with instant or request execution
 JOURNAL = pathlib.Path("quickstart-journal.jsonl")
+LOCK = pathlib.Path("quickstart-journal.lock")
 # The filling modes a market order can use.
 MARKET_FILLINGS: tuple[Literal["fok", "ioc"], ...] = ("fok", "ioc")
 
@@ -47,6 +48,24 @@ def note(entry: dict[str, Any]) -> None:
         file.write(json.dumps(entry) + "\n")
         file.flush()
         os.fsync(file.fileno())
+
+
+def lock_journal() -> IO[str]:
+    """Hold the journal for this run, so two runs never start from the same journal at once.
+    The operating system lets go of the lock when the process ends, however it ends."""
+    file = LOCK.open("a")
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            msvcrt.locking(file.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        stop(f"Another run of the quickstart is using {JOURNAL} in this folder.")
+    return file
 
 
 def open_entries() -> list[dict[str, Any]]:
@@ -131,6 +150,12 @@ def main() -> None:
     started_on = (account["login"], account["server"])
     check_account(account, started_on)
 
+    with lock_journal():  # held until the round trip is done
+        round_trip(acct, started_on)
+
+
+def round_trip(acct: Account, started_on: tuple[int, str]) -> None:
+    """Buy the smallest volume, follow it to an outcome, and close what it opened."""
     settle_journal(acct)
     # A position or order from an earlier run (one that crashed, or settled late) comes first.
     leftovers = [p["ticket"] for p in acct.positions.list() if p["magic"] == MAGIC]

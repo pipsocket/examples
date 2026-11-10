@@ -4,7 +4,16 @@
 // its own order opened (found by this script's magic number). It won't buy while an earlier run's
 // position or order is still on the account.
 
-import { appendFileSync, closeSync, existsSync, fsyncSync, openSync, readFileSync } from "node:fs";
+import {
+  appendFileSync,
+  closeSync,
+  existsSync,
+  fsyncSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import {
   type Account,
   type AccountView,
@@ -22,6 +31,7 @@ const SYMBOL = process.env.PIPSOCKET_SYMBOL ?? "EURUSD"; // exactly as your brok
 const MAGIC = 4021; // this script's own number: MT5 keeps it on the order, its deals and its position
 const DEVIATION = 20; // points, for symbols with instant or request execution
 const JOURNAL = "quickstart-journal.jsonl";
+const LOCK = "quickstart-journal.lock";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -89,6 +99,23 @@ function checkAccount(account: AccountView): void {
   if (account.status !== "connected" || !account.trade_allowed) {
     stop("The account isn't ready to trade: it must be connected with trading allowed.");
   }
+}
+
+/**
+ * Hold the journal for this run, so two runs never start from the same journal at once. The lock
+ * file is removed when the script exits; only a run killed outright (kill -9) leaves it behind.
+ */
+function lockJournal(): void {
+  try {
+    writeFileSync(LOCK, String(process.pid), { flag: "wx" });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    stop(
+      `Another run of the quickstart (process ${readFileSync(LOCK, "utf8")}) is using ${JOURNAL} in this folder. ` +
+        `If it isn't running any more, delete ${LOCK}.`,
+    );
+  }
+  process.once("exit", () => rmSync(LOCK, { force: true }));
 }
 
 /** Finish what an earlier run left open before trading again. */
@@ -160,6 +187,7 @@ process.once("SIGINT", () => {
   process.exit(130);
 });
 
+lockJournal();
 await settleJournal(acct);
 // A position or order from an earlier run (one that crashed, or settled late) comes first.
 const leftovers = [

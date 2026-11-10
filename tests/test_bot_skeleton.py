@@ -253,7 +253,7 @@ def test_a_recovered_trade_that_isnt_a_fill_stops_it(
     first = run(EXAMPLE, *FAST, "--steps", "20")
     second = run(EXAMPLE, *FAST, "--steps", "20")
 
-    assert first.code != 0 and "ended placed, not a fill" in first.stderr
+    assert first.code != 0 and "ended placed, not a full fill" in first.stderr
     assert second.code != 0 and f"pending order with magic {MAGIC}" in second.stderr
     assert mock.trades() == []
     assert len(mock.broker.orders) == 1  # left for the owner to look at
@@ -278,3 +278,46 @@ def test_still_reports_open_trades_when_the_account_cant_be_read_on_exit(
         assert "Engaged, but the terminal didn't answer" in stopped.stdout
     else:
         assert "positions are unknown" in stopped.stdout
+
+
+def test_a_recovered_partial_close_stops_it(
+    mock: MockPipsocket, run: Callable[..., Run], tmp_path: pathlib.Path
+) -> None:
+    mock.broker.positions.append(position(7002, magic=MAGIC) | {"volume": 0.02})
+    # An earlier run's close was pending when it stopped; it settles having closed half.
+    mock.broker.plan = ["partial+pending_forever"]
+    close = httpx.post(
+        f"{mock.base_url}/v1/accounts/{ACCOUNT}/positions/7002/close",
+        headers={"Authorization": f"Bearer {KEY}", "Idempotency-Key": "earlier-run-key-0003"},
+        json={"volume": 0.02, "type_filling": "ioc", "magic": MAGIC},
+    )
+    request_id = close.json()["request"]
+    mock.broker.settles_after[request_id] = 1
+    entries = [
+        {"key": "earlier-run-key-0003", "intent": "close position 7002"},
+        {"key": "earlier-run-key-0003", "request": request_id, "state": "pending", "final": False},
+    ]
+    (tmp_path / "bot-journal.jsonl").write_text("".join(json.dumps(e) + "\n" for e in entries))
+    mock.calls.clear()
+    mock.broker.prices["EURUSD"] = [(1.0840, 1.0841)] * 6 + [(1.0830, 1.0831)]
+
+    result = run(EXAMPLE, *FAST, "--steps", "7")
+
+    assert result.code != 0
+    assert "ended partial, not a full fill" in result.stderr
+    assert mock.trades() == []
+    assert [p["volume"] for p in mock.broker.positions] == [0.01]
+
+
+def test_wont_trade_while_trading_isnt_allowed_but_the_kill_switch_still_engages(
+    mock: MockPipsocket, run: Callable[..., Run]
+) -> None:
+    mock.broker.prices["EURUSD"] = UP_THEN_DOWN
+    mock.broker.account_changes_after = (1, {"trade_allowed": False})
+
+    result = run(EXAMPLE, *FAST, "--steps", "20", "--kill-switch-on-exit")
+
+    assert result.code != 0
+    assert "isn't ready to trade" in result.stderr
+    assert mock.trades() == []
+    assert len(mock.calls_to("POST", "/kill-switch")) == 1
