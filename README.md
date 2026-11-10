@@ -15,7 +15,7 @@ Small projects that run as they are, using the [Python](https://github.com/pipso
 | [`node/worker`](node/worker) | A Cloudflare Worker that reads an account on a schedule and logs a report |
 | [`tradingview`](tradingview) | Alert message templates, and a dry run posted to your own hook (`"test": true`) |
 
-Each folder has its own README, an `.env.example` and pinned dependencies. Copy `.env.example` to `.env` and fill it in: your workspace's key from the dashboard's **API key** page (`psk_...`) and the account's id (`acc_...`) from the same page.
+Each folder has its own README, an `.env.example` and pinned dependencies. Copy `.env.example` to `.env` and fill it in: your workspace's key from the dashboard's **API key** page (`psk_...`) and the account's id (`acc_...`) from the same page. In `tradingview/` it takes your hook's URL instead: a hook's URL is its credential, and the dry run doesn't use the API key.
 
 ## What every trading example does
 
