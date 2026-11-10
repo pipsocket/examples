@@ -7,7 +7,8 @@ import pathlib
 from collections.abc import Callable
 from typing import Any
 
-from conftest import Run
+import pytest
+from conftest import Run, Running
 from mock_pipsocket import MockPipsocket
 from safety import check_trades
 
@@ -89,7 +90,7 @@ def test_waits_for_a_trade_an_earlier_run_left_pending(
     mock.broker.plan = ["pending_forever"]
     first = run(EXAMPLE, *FAST, "--steps", "7")  # its order never settles while it waits
     assert first.code != 0
-    assert "may still execute" in first.stderr
+    assert "May still execute: buy 0.01 EURUSD" in first.stdout
     [placed] = mock.trades()
     request_id = placed.answer["request"]
     mock.broker.settles_after[request_id] = 1  # settles on the next lookup
@@ -124,3 +125,81 @@ def test_refuses_an_account_that_isnt_demo(mock: MockPipsocket, run: Callable[..
     assert result.code != 0
     assert mock.trades() == []
     assert mock.calls_to("POST", "/kill-switch") == []
+
+
+@pytest.mark.parametrize(
+    ("change", "says"),
+    [
+        ({"trade_mode": "real"}, "not demo"),
+        ({"login": 5058427999, "server": "ExampleBroker-Live"}, "login or server changed"),
+    ],
+)
+def test_stops_when_the_account_changes_under_it(
+    mock: MockPipsocket, run: Callable[..., Run], change: dict[str, Any], says: str
+) -> None:
+    mock.broker.prices["EURUSD"] = UP_THEN_DOWN
+    mock.broker.account_changes_after = (1, change)  # after the bot's first read
+
+    result = run(EXAMPLE, *FAST, "--steps", "20", "--kill-switch-on-exit")
+
+    assert result.code != 0
+    assert says in result.stderr
+    assert mock.trades() == []
+    assert mock.calls_to("POST", "/kill-switch") == []
+    assert "Not engaging the kill switch" in result.stdout
+
+
+def test_refuses_a_netting_account(mock: MockPipsocket, run: Callable[..., Run]) -> None:
+    mock.broker.account["margin_mode"] = "netting"
+    mock.broker.prices["EURUSD"] = UP_THEN_DOWN
+
+    result = run(EXAMPLE, *FAST, "--steps", "20")
+
+    assert result.code != 0
+    assert "only hedging accounts" in result.stderr
+    assert mock.trades() == []
+
+
+def test_one_run_at_a_time_per_journal(
+    mock: MockPipsocket, run: Callable[..., Run], start: Callable[..., Running]
+) -> None:
+    first = start(EXAMPLE, "--interval", "0.1")
+    first.wait_for("Trading 0.01 EURUSD")
+
+    second = run(EXAMPLE, *FAST, "--steps", "20")
+
+    assert second.code != 0
+    assert "Another run of the bot" in second.stderr
+    assert first.interrupt().code == 0
+
+
+def test_stops_when_a_buy_is_taken_but_not_filled(
+    mock: MockPipsocket, run: Callable[..., Run]
+) -> None:
+    mock.broker.prices["EURUSD"] = [(1.0840, 1.0841)] * 6 + [
+        (1.0850 + i / 1000, 1.0851) for i in range(6)
+    ]
+    mock.broker.plan = ["placed"]
+
+    result = run(EXAMPLE, *FAST, "--steps", "12")
+
+    assert result.code != 0
+    assert "didn't end as a fill: placed" in result.stderr
+    assert len(mock.trades()) == 1
+    check_trades(mock, MAGIC)
+
+
+def test_ctrl_c_while_a_buy_is_pending_says_it_may_still_execute(
+    mock: MockPipsocket, start: Callable[..., Running]
+) -> None:
+    mock.broker.prices["EURUSD"] = UP_THEN_DOWN[:7]
+    mock.broker.plan = ["pending_forever"]
+    bot = start(EXAMPLE, *FAST, "--steps", "7", "--kill-switch-on-exit")
+    bot.wait_for("buy 0.01 EURUSD: req_")
+
+    stopped = bot.interrupt()
+
+    assert stopped.code != 0
+    assert "has no outcome yet: if it fills, the kill switch closes it" in stopped.stdout
+    assert "May still execute: buy 0.01 EURUSD" in stopped.stdout
+    check_trades(mock, MAGIC)

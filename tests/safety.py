@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from mock_pipsocket import ACCOUNT, MockPipsocket
 
@@ -17,11 +18,15 @@ def check_trades(mock: MockPipsocket, magic: int) -> None:
       sent again with exactly the same call (a retry), never for a different trade.
     - An order is the symbol's smallest volume, with a filling mode the symbol lists that a
       market order can use, and carries the example's magic number.
-    - A close or cancel is for a position or order that carries the example's magic number.
+    - A close is for a position the example opened (or that carried its magic number before it
+      started), for no more volume than that position had, with a filling mode the symbol lists
+      that a market order can use, and carries the example's magic number.
     """
     assert mock.broker.account["trade_mode"] == "demo", "traded on an account that isn't demo"
     sent_with: dict[str, tuple[str, str, object]] = {}
-    ours = {p["ticket"] for p in owned_at_start(mock, magic)} | opened_by_orders(mock)
+    # Position ticket: (symbol, volume), for the positions the example may close.
+    ours = {p["ticket"]: (p["symbol"], p["volume"]) for p in owned_at_start(mock, magic)}
+    ours |= opened_by_orders(mock)
     prefix = f"/v1/accounts/{ACCOUNT}"
     for call in mock.trades():
         key = call.key
@@ -41,19 +46,25 @@ def check_trades(mock: MockPipsocket, magic: int) -> None:
         elif "/positions/" in call.path:
             ticket = int(call.path.split("/positions/")[1].split("/")[0])
             assert ticket in ours, f"touched position {ticket}, which the example didn't open"
+            symbol_name, volume = ours[ticket]
+            assert call.body["volume"] <= volume + 1e-9, f"closed more of {ticket} than it opened"
+            filling = call.body["type_filling"]
+            symbol = mock.broker.symbols[symbol_name]
+            assert filling in MARKET_FILLINGS and filling in symbol["filling_modes"], filling
             assert call.body.get("magic") == magic, "a close without the example's magic number"
         else:
             raise AssertionError(f"an unexpected trade call: {call.method} {call.path}")
 
 
-def owned_at_start(mock: MockPipsocket, magic: int) -> list[dict[str, object]]:
+def owned_at_start(mock: MockPipsocket, magic: int) -> list[dict[str, Any]]:
     """Positions carrying the magic that were on the account before the example traded."""
     return [p for p in mock.start_positions if p["magic"] == magic]
 
 
-def opened_by_orders(mock: MockPipsocket) -> set[int]:
-    """Positions opened by orders the example placed, from their requests as they stand now
-    (a pending order's ticket is known only once it settles). Its identifier is the order's."""
+def opened_by_orders(mock: MockPipsocket) -> dict[int, tuple[str, float]]:
+    """Positions opened by orders the example placed, with what filled, from their requests as
+    they stand now (a pending order's ticket is known only once it settles). A position's ticket
+    on a hedging account is its order's."""
     prefix = f"/v1/accounts/{ACCOUNT}"
     ids = {
         call.answer["request"]
@@ -62,11 +73,12 @@ def opened_by_orders(mock: MockPipsocket) -> set[int]:
         and isinstance(call.answer, dict)
         and "request" in call.answer
     }
-    return {
-        mock.broker.requests[i]["result"]["order"]
-        for i in ids
-        if (mock.broker.requests[i].get("result") or {}).get("order")
-    }
+    opened: dict[int, tuple[str, float]] = {}
+    for request in (mock.broker.requests[i] for i in ids):
+        result = request.get("result") or {}
+        if result.get("deal"):
+            opened[result["order"]] = (request["sent"]["symbol"], result["volume"])
+    return opened
 
 
 def journal_keys(text: str) -> set[str]:

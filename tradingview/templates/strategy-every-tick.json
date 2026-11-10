@@ -1,0 +1,14 @@
+{
+  "action": "strategy",
+  "src": "k3f9",
+  "event_id": "k3f9-ema-{{exchange}}:{{ticker}}-{{interval}}-{{strategy.order.id}}-{{time}}-{{strategy.market_position}}-{{strategy.market_position_size}}-{{strategy.order.alert_message}}",
+  "sent_at": "{{timenow}}",
+  "symbol": "{{exchange}}:{{ticker}}",
+  "tag": "ema",
+  "position": {
+    "from": "{{strategy.prev_market_position}}",
+    "from_size": "{{strategy.prev_market_position_size}}",
+    "to": "{{strategy.market_position}}",
+    "size": "{{strategy.market_position_size}}"
+  }
+}

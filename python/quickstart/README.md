@@ -2,12 +2,12 @@
 
 Reads a demo account, buys the smallest volume the symbol allows, handles the outcome, and closes the position it opened.
 
-- It stops unless the account's `trade_mode` is `demo`, the account is connected and trading is allowed.
+- It stops unless the account's `trade_mode` is `demo`, it is a hedging account, it is connected and trading is allowed. (On a netting account one position holds every trade's volume on a symbol, so "the position this script opened" can include other trades.)
 - It takes the filling mode (`fok` or `ioc`) and the volume (`volume_min`) from the symbol, and stops if the symbol allows neither mode. Where the symbol executes on request or instantly, it sends the current price with a deviation.
-- On a netting account that already has a position on the symbol, it stops: an order would change a position it didn't open.
-- Its orders carry magic number `4021`, and it only closes the position its own order opened.
+- Its orders carry magic number `4021`, and it only closes the position its own order opened. It won't buy while a position or pending order with that number is still on the account from an earlier run: close it first.
 - Each trade's idempotency key is written to `quickstart-journal.jsonl` before the trade is sent, and its outcome once known. A `pending` answer is followed with `requests.wait`. If the answer to a trade is lost, the entry stays open, and the next run stops until you have checked the account.
-- `completed` is not taken to mean filled: it looks for a deal in the result.
+- `completed` is not taken to mean filled: it looks for a deal in the result. After closing, it reads the positions again: a close can fill only in part, and then it says how much is left.
+- Ctrl+C while a trade has no outcome yet says which trade may still execute.
 
 ## Run it
 
@@ -35,3 +35,5 @@ This account's trade mode is 'real'. The quickstart trades only on demo accounts
 ```
 
 See the [quickstart](https://docs.pipsocket.com/quickstart) and [errors and retcodes](https://docs.pipsocket.com/errors) in the docs.
+
+MetaTrader is a trademark of MetaQuotes Ltd. Pipsocket is not affiliated with MetaQuotes.

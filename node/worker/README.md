@@ -30,3 +30,5 @@ In the `wrangler dev` output, or in the Worker's logs once deployed:
 ```text
 {"account":"acc_01m6tx3k9f2qw8r7bznd5yvh4c","status":"connected","trade_mode":"demo","balance":10000,"equity":10012.4,"margin_level":46182.66,"kill_switch":false,"positions":["buy 0.1 EURUSD"],"deals_last_day":2,"net_last_day":-51.9}
 ```
+
+MetaTrader is a trademark of MetaQuotes Ltd. Pipsocket is not affiliated with MetaQuotes.

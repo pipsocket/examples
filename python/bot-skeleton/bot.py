@@ -2,18 +2,21 @@
 
 Replace `decide()` with your own signal. What's around it is the part worth keeping:
 
-- It trades only on an account whose trade mode is demo.
+- It trades only on a hedging account whose trade mode is demo, and reads the account again
+  before every trade: if it stops being demo, or its login or server changes, the bot stops.
 - It holds at most one position, of the symbol's smallest volume, with a filling mode the symbol
   allows. Its orders carry its magic number, and it only ever closes positions that carry it:
   your other trades on the account are left alone.
-- Each trade's idempotency key is saved to a journal before the trade is sent. On start, it
-  settles what an earlier run left open, and refuses to trade while a trade may have executed
-  without an answer.
-- A pending trade is followed with requests.wait, which only looks it up. If a trade's outcome
-  can't be known, the bot stops rather than trade on top of it.
-- On exit it leaves its position as it is. With --kill-switch-on-exit it engages the account's
-  kill switch, which closes every position and cancels every pending order on the account (not
-  only the bot's) and refuses new trades until you lift it.
+- Each trade's idempotency key is saved to a journal before the trade is sent. One run at a time
+  holds the journal. On start, it settles what an earlier run left open, and refuses to trade
+  while a trade may have executed without an answer.
+- A pending trade is followed with requests.wait, which only looks it up. Any trade that doesn't
+  end as a plain fill (no outcome yet, rejected, placed without a deal, settled by hand) stops
+  the bot for you to look at, rather than have it trade on top.
+- On exit it leaves its position as it is, and says which trades, if any, may still execute.
+  With --kill-switch-on-exit it engages the account's kill switch, which closes every position
+  and cancels every pending order on the account (not only the bot's) and refuses new trades
+  until you lift it.
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ import pathlib
 import sys
 import time
 from collections.abc import Callable
-from typing import Any, Literal, NoReturn
+from typing import IO, Any, Literal, NoReturn
 
 import pipsocket
 from pipsocket import (
@@ -36,7 +39,7 @@ from pipsocket import (
     TradeRequest,
 )
 from pipsocket.client import Account
-from pipsocket.types import PositionView
+from pipsocket.types import AccountView, PositionView
 
 ACCOUNT = os.environ["PIPSOCKET_ACCOUNT"]
 SYMBOL = os.environ.get("PIPSOCKET_SYMBOL", "EURUSD")  # exactly as your broker names it
@@ -44,6 +47,7 @@ MAGIC = 7310  # the bot's own number: MT5 keeps it on its orders, deals and posi
 DEVIATION = 20  # points, for symbols with instant or request execution
 LOOKBACK = 5  # prices the signal looks at
 JOURNAL = pathlib.Path("bot-journal.jsonl")
+LOCK = pathlib.Path("bot-journal.lock")
 
 Want = Literal["long", "flat"]
 # The filling modes a market order can use.
@@ -76,6 +80,25 @@ class Stop(Exception):
 
 
 # The journal: each trade's key is written before the trade is sent, and its outcome once known.
+
+
+def lock_journal() -> IO[str]:
+    """Hold the journal for this run, so two runs never trade from one journal at once. The
+    operating system lets go of the lock when the process ends, however it ends."""
+    file = LOCK.open("a")
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            msvcrt.locking(file.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        file.close()
+        raise Stop(f"Another run of the bot is using {JOURNAL} in this folder.") from None
+    return file
 
 
 def note(entry: dict[str, Any]) -> None:
@@ -117,10 +140,7 @@ def send(acct: Account, intent: str, call: Callable[[str], TradeRequest]) -> Tra
     try:
         request = call(key)
     except OutcomeUnknown as error:
-        raise Stop(
-            f"No answer for '{intent}' after the client's retries: it may have executed. Its key "
-            f"{key} stays open in {JOURNAL}."
-        ) from error
+        raise Stop(f"No answer for '{intent}' after the client's retries.") from error
     except PipsocketError as error:
         note({"key": key, "final": True, "refused": str(error)})  # refused: nothing was sent
         raise Stop(f"'{intent}' was refused: {error}") from error
@@ -130,14 +150,20 @@ def send(acct: Account, intent: str, call: Callable[[str], TradeRequest]) -> Tra
         request = acct.requests.wait(request.id)  # lookups only: never sends it again
         note({"key": key, "state": request.state, "final": request.final})
         print(f"{intent}: {request.id} {request.state}")
-    if not request.final:
-        raise Stop(f"{request.id} is still {request.state}: it may still execute.")
     return request
+
+
+def filled(request: TradeRequest) -> bool:
+    """MT5 took it and made a deal. `completed` alone isn't a fill."""
+    return request.accepted and bool(request.result["deal"])
 
 
 class Bot:
     def __init__(self, acct: Account) -> None:
         self.acct = acct
+        self.identity: tuple[int, str] | None = None
+        account = self.check_account()
+        self.identity = (account["login"], account["server"])
         symbol = acct.symbols.get(SYMBOL)
         filling = market_filling(symbol["filling_modes"])
         if filling is None:
@@ -148,6 +174,20 @@ class Bot:
         self.volume = symbol["volume_min"]
         self.needs_price = symbol.get("execution") in ("instant", "request")
         self.prices: list[float] = []
+        if any(order["magic"] == MAGIC for order in acct.orders.list()):
+            raise Stop(f"A pending order with magic {MAGIC} is on the account: look at it first.")
+
+    def check_account(self) -> AccountView:
+        """The account, read fresh: still demo, hedging, and the same login on the same server."""
+        account = self.acct.get()
+        if account.get("trade_mode") != "demo":
+            raise Stop(f"The account's trade mode is {account.get('trade_mode')!r}, not demo.")
+        if account.get("margin_mode") != "hedging":
+            # On a netting account, a position holds everyone's volume on its symbol.
+            raise Stop("The bot trades only hedging accounts.")
+        if self.identity not in (None, (account["login"], account["server"])):
+            raise Stop("The account's login or server changed: its positions aren't the bot's.")
+        return account
 
     def mine(self) -> list[PositionView]:
         """The bot's positions: the symbol's, carrying its magic number. Read fresh each time."""
@@ -161,12 +201,16 @@ class Bot:
         except PipsocketError as error:  # after the client's own retries: try the next step
             print(f"no price this time: {error}")
             return
-        self.prices.append((tick["bid"] + tick["ask"]) / 2)
+        self.prices = [*self.prices[-LOOKBACK:], (tick["bid"] + tick["ask"]) / 2]
         want = decide(self.prices)
+        if want is None:
+            return
         held = self.mine()
         if want == "long" and not held:
+            self.check_account()
             self.buy(tick["ask"])
-        elif want == "flat":
+        elif want == "flat" and held:
+            self.check_account()
             for position in held:
                 self.close(position, tick["bid"])
 
@@ -185,12 +229,11 @@ class Bot:
                 idempotency_key=key,
             ),
         )
-        if order.accepted and not order.result["deal"]:
-            # Taken but not filled (completed doesn't mean filled): nothing to hold yet.
-            print(f"order {order.result['order']} placed, not filled")
+        if not filled(order):
+            raise Stop(f"The buy didn't end as a fill: {order.state} {order.message}")
 
     def close(self, position: PositionView, bid: float) -> None:
-        send(
+        closed = send(
             self.acct,
             f"close position {position['ticket']}",
             lambda key: self.acct.positions.close(
@@ -203,9 +246,19 @@ class Bot:
                 idempotency_key=key,
             ),
         )
+        if not filled(closed) or closed.state == "partial":
+            raise Stop(f"The close didn't end as a full fill: {closed.state} {closed.message}")
 
 
-def engage_kill_switch(acct: Account) -> None:
+def engage_kill_switch(bot: Bot | None, acct: Account) -> None:
+    if bot is None:
+        print("Not engaging the kill switch: the bot never started trading.")
+        return
+    try:
+        bot.check_account()
+    except Stop as error:
+        print(f"Not engaging the kill switch: {error}")
+        return
     print("Engaging the kill switch: every position and pending order on the account is closed.")
     try:
         outcome = acct.kill_switch.engage(deviation=DEVIATION)
@@ -214,6 +267,17 @@ def engage_kill_switch(acct: Account) -> None:
         print(f"Engaged, but the terminal didn't answer: {error.kill_switch}")
         return
     print(f"Kill switch engaged. Flat: {outcome['flat']}. Lift it in the dashboard or the API.")
+    for request_id in outcome["unanswered"]:
+        print(f"  {request_id} has no outcome yet: if it fills, the kill switch closes it")
+
+
+def report_open_trades() -> bool:
+    """Say which trades may still execute. True if there are any."""
+    entries = open_entries()
+    for entry in entries:
+        where = f"request {entry['request']}" if "request" in entry else "no answer came back"
+        print(f"May still execute: {entry['intent']} (key {entry['key']}, {where})")
+    return bool(entries)
 
 
 def stop(message: str) -> NoReturn:
@@ -235,20 +299,16 @@ def main() -> None:
 
     # PIPSOCKET_BASE_URL is for tests against a local mock; leave it unset.
     acct = Pipsocket(base_url=os.environ.get("PIPSOCKET_BASE_URL")).account(ACCOUNT)
-    account = acct.get()
-    if account.get("trade_mode") != "demo":
-        stop(
-            f"This account's trade mode is {account.get('trade_mode')!r}: the bot trades only demo."
-        )
+    try:
+        lock = lock_journal()
+    except Stop as error:
+        stop(str(error))
 
+    bot: Bot | None = None
     failure: str | None = None
     try:
+        bot = Bot(acct)  # checks the account before anything else
         settle_journal(acct)
-        bot = Bot(acct)
-        if account.get("margin_mode") != "hedging" and any(
-            p["symbol"] == SYMBOL and p["magic"] != MAGIC for p in acct.positions.list()
-        ):
-            raise Stop(f"Netting account with someone else's position on {SYMBOL}: not trading.")
         print(f"Trading {bot.volume} {SYMBOL} with magic {MAGIC}. Ctrl+C stops.")
         step = 0
         while options.steps == 0 or step < options.steps:
@@ -258,15 +318,15 @@ def main() -> None:
     except Stop as error:
         failure = str(error)
     except KeyboardInterrupt:
-        pass
+        pass  # the usual way to stop it
     finally:
         if options.kill_switch_on_exit:
-            engage_kill_switch(acct)
-        else:
-            held = [
-                p for p in acct.positions.list() if p["symbol"] == SYMBOL and p["magic"] == MAGIC
-            ]
-            print(f"Stopped. Left as they are: {len(held)} of the bot's positions.")
+            engage_kill_switch(bot, acct)
+        elif bot is not None:
+            print(f"Stopped. Left as they are: {len(bot.mine())} of the bot's positions.")
+        if report_open_trades():
+            failure = failure or "Some trades have no known outcome yet."
+        lock.close()
     if failure is not None:
         stop(failure)
 

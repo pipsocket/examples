@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import os
 import pathlib
-import shutil
+import queue
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from typing import IO
 
 import pytest
 
@@ -109,29 +111,56 @@ def run(mock: MockPipsocket, tmp_path: pathlib.Path) -> Callable[..., Run]:
 
 
 class Running:
-    """An example left running (a stream), read line by line and stopped with Ctrl+C."""
+    """An example left running (a stream, a bot), read line by line and stopped with Ctrl+C.
+
+    Its output is read on threads, so a silent example fails a test at the deadline instead of
+    hanging it."""
 
     def __init__(self, process: subprocess.Popen[str]) -> None:
         self.process = process
         self.lines: list[str] = []
+        self.stdout: queue.Queue[str | None] = queue.Queue()
+        self.stderr: list[str] = []
+        assert process.stdout is not None and process.stderr is not None
+        threading.Thread(target=self._read, args=(process.stdout,), daemon=True).start()
+        self.stderr_reader = threading.Thread(
+            target=self.stderr.extend, args=(process.stderr,), daemon=True
+        )
+        self.stderr_reader.start()
+
+    def _read(self, stream: IO[str]) -> None:
+        for line in stream:
+            self.stdout.put(line)
+        self.stdout.put(None)
 
     def wait_for(self, text: str, seconds: float = 20) -> str:
-        assert self.process.stdout is not None
         deadline = time.monotonic() + seconds
-        while time.monotonic() < deadline:
-            line = self.process.stdout.readline()
-            if not line and self.process.poll() is not None:
+        while (left := deadline - time.monotonic()) > 0:
+            try:
+                line = self.stdout.get(timeout=left)
+            except queue.Empty:
+                break
+            if line is None:
                 break
             self.lines.append(line)
             if text in line:
                 return line
-        stderr = self.process.stderr.read() if self.process.stderr else ""
-        raise AssertionError(f"never printed {text!r}; printed:\n{''.join(self.lines)}{stderr}")
+        self.process.kill()
+        self.process.wait()
+        printed = "".join(self.lines) + "".join(self.stderr)
+        raise AssertionError(f"never printed {text!r}; printed:\n{printed}")
 
     def interrupt(self, seconds: float = 15) -> Run:
         self.process.send_signal(signal.SIGINT)
-        stdout, stderr = self.process.communicate(timeout=seconds)
-        return Run(self.process.returncode, "".join(self.lines) + stdout, stderr)
+        try:
+            self.process.wait(timeout=seconds)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+            raise
+        while (line := self.stdout.get(timeout=5)) is not None:
+            self.lines.append(line)
+        self.stderr_reader.join(5)
+        return Run(self.process.returncode, "".join(self.lines), "".join(self.stderr))
 
 
 @pytest.fixture
@@ -157,7 +186,3 @@ def start(mock: MockPipsocket, tmp_path: pathlib.Path) -> Iterator[Callable[...,
         if running.process.poll() is None:
             running.process.kill()
             running.process.wait()
-
-
-def node_available() -> bool:
-    return shutil.which("node") is not None

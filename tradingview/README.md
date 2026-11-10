@@ -14,9 +14,20 @@ Paste one into the **Message** box of a TradingView alert. TradingView fills in 
 | [`close-buy.json`](templates/close-buy.json) | The matching exit: closes the buys this template's lane holds |
 | [`open-buy-limit.json`](templates/open-buy-limit.json) | A buy limit 15 pips below the price, for the day, at a fixed 0.01 lots |
 | [`strategy.json`](templates/strategy.json) | A strategy's order fills: strategy mode, which brings the account's position to the strategy's |
+| [`strategy-every-tick.json`](templates/strategy-every-tick.json) | The same, for a strategy that can fill more than once in a bar (see below) |
 | [`close-all.json`](templates/close-all.json) | Cancels the pending orders and closes the positions of every lane tagged `ema` |
 
-Each has a `tag` (its lane: a hook only acts on positions its own lane opened) and an `event_id` built from the template's `src`, the symbol, the interval and the bar's time, so a resent alert is recognised and never trades twice. Change `src` when you copy a template for a new alert. The dashboard's message builder writes these for you, too.
+Each has a `tag` (its lane: a hook only acts on positions its own lane opened) and an `event_id` built from the template's `src`, the symbol, the interval and the bar's time, so an alert TradingView sends twice is recognised and never trades twice. Change `src` when you copy a template for a new alert. The dashboard's message builder writes these for you, too.
+
+### How often an alert may fire
+
+Those `event_id`s assume **at most one alert per bar for each action**: a second alert with the same id in the same bar is refused as a `duplicate` (or a `conflict`, if its message differs), so a legitimate second exit in one bar would be dropped. So:
+
+- **Indicator templates** (`open-buy.json`, `close-buy.json`, `open-buy-limit.json`, `close-all.json`): create the alert with the frequency **Once per bar close**.
+- **`strategy.json`**: for a strategy that fills at most once per bar for each order id and position. A strategy evaluated on every tick (`calc_on_every_tick = true`) can fill more than once in a bar.
+- **`strategy-every-tick.json`**: adds `{{strategy.order.alert_message}}` to the `event_id`. The strategy passes a counter there that goes up with each order it places, so every fill gets its own id. In Pine, `varip int orders = 0`, then for each order `orders += 1` and `strategy.entry("Long", strategy.long, alert_message = str.tostring(orders))`. The docs' [order fills](https://docs.pipsocket.com/tradingview#order-fills-strategies) section has the whole script.
+
+See [ids, duplicates and order](https://docs.pipsocket.com/tradingview-messages#ids-duplicates-and-order).
 
 ## The dry run
 
@@ -45,3 +56,5 @@ Posting a dry run to https://hooks.pipsocket.com/t/hk_.../whk_...:
 }
 200: Recorded. The dry run's result is in the hook's alert log in the dashboard.
 ```
+
+MetaTrader is a trademark of MetaQuotes Ltd. Pipsocket is not affiliated with MetaQuotes.

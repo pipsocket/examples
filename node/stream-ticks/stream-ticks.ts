@@ -21,10 +21,18 @@ process.once("SIGINT", () => stream.close()); // Ctrl+C ends the loop below
 // is not the same as empty.
 let positions: Map<number, PositionView> | null = null;
 let orders: Map<number, PendingOrderView> | null = null;
-const dealsSeen = new Set<number>();
+const dealsSeen = new Set<number>(); // tickets are per login and server
+let identity: string | null = null;
 
 for await (const event of stream) {
   if (isEvent(event, "resync")) {
+    const login = `${event.account?.login} on ${event.account?.server}`;
+    if (identity !== null && identity !== login) {
+      // Another login or server: its tickets are a different series.
+      dealsSeen.clear();
+      console.log(`  the account is now login ${login}`);
+    }
+    identity = login;
     // The new baseline: replace what we hold, never add events to it.
     positions = event.positions && new Map(event.positions.map((p) => [p.ticket, p]));
     orders = event.orders && new Map(event.orders.map((o) => [o.ticket, o]));

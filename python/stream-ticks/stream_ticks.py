@@ -31,7 +31,8 @@ def main() -> None:
     # which is not the same as empty.
     positions: dict[int, dict[str, Any]] | None = None
     orders: dict[int, dict[str, Any]] | None = None
-    deals_seen: set[int] = set()
+    deals_seen: set[int] = set()  # tickets are per login and server
+    identity: tuple[object, object] | None = None
 
     try:
         with acct.stream(ticks=SYMBOLS) as events:
@@ -42,6 +43,12 @@ def main() -> None:
                         positions = by_ticket(event["positions"])
                         orders = by_ticket(event["orders"])
                         account: dict[str, Any] = event["account"] or {}
+                        login = (account.get("login"), account.get("server"))
+                        if identity not in (None, login):
+                            # Another login or server: its tickets are a different series.
+                            deals_seen.clear()
+                            print(f"  the account is now login {login[0]} on {login[1]}")
+                        identity = login
                         held = "unknown" if positions is None else len(positions)
                         pending = "unknown" if orders is None else len(orders)
                         print(

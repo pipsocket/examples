@@ -36,3 +36,5 @@ Balance operations: 1, total 499.50
 ```
 
 See [deal and order history](https://docs.pipsocket.com/api/history) in the docs.
+
+MetaTrader is a trademark of MetaQuotes Ltd. Pipsocket is not affiliated with MetaQuotes.

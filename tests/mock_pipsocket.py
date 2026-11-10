@@ -3,9 +3,10 @@
 The examples run against it as they are, with PIPSOCKET_BASE_URL and PIPSOCKET_STREAM_URL
 pointing here and a made-up key. It keeps one demo account's positions, pending orders, deals and
 trade requests, answers the calls the examples make the way the docs at docs.pipsocket.com
-describe, and checks every request body and every answer against the API's OpenAPI document
-(tests/openapi.json, written by tests/snapshot_openapi.py), so the mock can't drift from the API
-without a test failing.
+describe, and checks the shape of every request body and every answer against the API's OpenAPI
+document (tests/openapi.json, written by tests/snapshot_openapi.py), so its fields and states can't
+drift from the API's without a test failing. That checks shapes, not behaviour: what the mock does
+with a call is modelled on the docs.
 
 Tests change the account through `broker` before an example runs (its trade mode, a symbol's
 filling modes, what the next trade answers) and read `calls` afterwards: every call the example
@@ -43,6 +44,7 @@ _REGISTRY = Registry().with_resource(
 RETCODES = {
     10008: "TRADE_RETCODE_PLACED",
     10009: "TRADE_RETCODE_DONE",
+    10010: "TRADE_RETCODE_DONE_PARTIAL",
     10013: "TRADE_RETCODE_INVALID",
     10014: "TRADE_RETCODE_INVALID_VOLUME",
     10015: "TRADE_RETCODE_INVALID_PRICE",
@@ -224,10 +226,12 @@ class Broker:
     history_orders: list[Json] = field(default_factory=list[Json])
     requests: dict[str, Json] = field(default_factory=dict[str, Json])
     keys: dict[str, str] = field(default_factory=dict[str, str])
-    # How the next trade calls answer, in order: "fill", "reject", "pending" (pending, then
-    # completed on the request's second lookup), "pending_forever", or "lost" (503
-    # engine_unavailable on every attempt: the API may have had it, so the outcome is unknown).
-    # Empty means "fill".
+    # How the next trade calls answer, in order. Empty means "fill".
+    # - "fill", "partial" (about half filled), "placed" (taken, no deal), "reject"
+    # - "pending" (pending, then completed on the request's second lookup), "pending_forever"
+    # - "lost": 503 engine_unavailable on every attempt, nothing recorded, so the outcome is unknown
+    # - "executed_then_lost": executed and recorded, but the first answer is a 503; the same key
+    #   then finds the request
     plan: list[str] = field(default_factory=list[str])
     # Lookups of a pending request left before it settles.
     settles_after: dict[str, int] = field(default_factory=dict[str, int])
@@ -240,6 +244,10 @@ class Broker:
     held: dict[str, tuple[Json, Json | None]] = field(
         default_factory=dict[str, tuple[Json, Json | None]]
     )
+    # Changes to the account applied after it has been read this many times: (reads, changes).
+    # For an account that changes under a running example.
+    account_changes_after: tuple[int, Json] | None = None
+    account_reads: int = 0
     next_ticket: int = 881402400
     next_request: int = 1
 
@@ -417,6 +425,9 @@ class MockPipsocket:
             return _template_for(method, parts), 503, _refusal("account_not_connected")
         match method, parts:
             case "GET", []:
+                b.account_reads += 1
+                if b.account_changes_after and b.account_reads > b.account_changes_after[0]:
+                    b.account.update(b.account_changes_after[1])
                 return t, 200, copy.deepcopy(b.account)
             case "GET", ["positions"]:
                 return t + "/positions", 200, copy.deepcopy(b.positions)
@@ -553,7 +564,13 @@ class MockPipsocket:
             return request, effects  # a refusal (status, body): nothing recorded
         if outcome == "reject" and effects is not None:
             self._reject(request, 10018)
-        elif effects is not None:
+            effects = None
+        elif outcome == "placed" and effects is not None:
+            self._placed_without_deal(request)
+            effects = None
+        elif outcome == "partial" and effects is not None:
+            self._make_partial(request, effects)
+        if effects is not None:
             self._apply(effects)
         if outcome in ("pending", "pending_forever") and request["state"] != "rejected":
             self._hold(request, effects)
@@ -562,7 +579,34 @@ class MockPipsocket:
         if key is not None:
             self.broker.keys[key] = request["request"]
         self.broker.requests[request["request"]] = request
+        if outcome == "executed_then_lost":
+            # Recorded and executed, but the answer never reached the client: only the same
+            # key finds it.
+            return 503, _refusal("engine_unavailable")
         return STATUS_FOR_STATE[request["state"]], copy.deepcopy(request)
+
+    def _placed_without_deal(self, request: Json) -> None:
+        """MT5 took it (10008) but made no deal: no position."""
+        result = request["result"]
+        request["state"] = "placed"
+        request["message"] = "The request was placed."
+        result.update(retcode=10008, retcode_name=RETCODES[10008], deal=0, volume=0, price=0)
+
+    def _make_partial(self, request: Json, effects: Json) -> None:
+        """MT5 filled part of it (10010): about half, in whole volume steps."""
+        symbol = self.broker.symbols[request["sent"]["symbol"]]
+        step = symbol["volume_step"]
+        done = round(max(step, round(request["sent"]["volume"] / 2 / step) * step), 8)
+        request["state"] = "partial"
+        request["message"] = "The request was partly filled."
+        request["result"].update(retcode=10010, retcode_name=RETCODES[10010], volume=done)
+        for deal in effects["add_deals"]:
+            deal["volume"] = done
+        if request["sent"]["position"]:  # a close: part of the position stays open
+            position = effects["remove_positions"][0]
+            effects["add_positions"] = [dict(position, volume=round(position["volume"] - done, 8))]
+        else:
+            effects["add_positions"][0]["volume"] = done
 
     def _new_request(self, sent: Json) -> Json:
         number = self.broker.next_request
@@ -643,11 +687,13 @@ class MockPipsocket:
         self.broker.positions.extend(effects.get("remove_positions", []))
         self.broker.orders.extend(effects.get("remove_orders", []))
 
-    def _check_order(self, body: Json, symbol: Json) -> int | None:
-        """The retcode MT5 would reject a market order with, or None."""
+    def _check_order(self, body: Json, symbol: Json, whole: float | None = None) -> int | None:
+        """The retcode MT5 would reject a market order with, or None. `whole` is the volume of
+        the position a close is for: closing all of it is allowed whatever the symbol's minimum."""
         if body.get("type_filling") not in symbol["filling_modes"]:
             return 10030
-        if not _volume_ok(body["volume"], symbol):
+        closes_all = whole is not None and math.isclose(body["volume"], whole)
+        if not closes_all and not _volume_ok(body["volume"], symbol):
             return 10014
         if symbol["execution"] in ("instant", "request") and not body.get("price"):
             return 10015
@@ -707,7 +753,8 @@ class MockPipsocket:
         sent = empty_sent() | body
         sent |= {"action": "deal", "symbol": position["symbol"], "type": side, "position": ticket}
         request = self._new_request(sent)
-        retcode = self._check_order(body, self.broker.symbols[position["symbol"]])
+        symbol = self.broker.symbols[position["symbol"]]
+        retcode = self._check_order(body, symbol, whole=position["volume"])
         if retcode is None and body["volume"] > position["volume"] + 1e-9:
             retcode = 10014
         if retcode is not None:
@@ -773,14 +820,17 @@ class MockPipsocket:
             self._apply(effects)
             self.broker.requests[request["request"]] = request
             cancelled.append({"order": order["ticket"], "request": request})
+        # Requests sent before it that could still add exposure: the switch can't sweep them yet.
+        unanswered = list(self.broker.held)
         return {
-            "flat": True,
+            "flat": not unanswered,
             "cancelled": copy.deepcopy(cancelled),
             "closed": copy.deepcopy(closed),
             "remaining": {"positions": 0, "orders": 0},
-            "unanswered": [],
+            "unanswered": unanswered,
             "kill_switch": copy.deepcopy(self.broker.account["kill_switch"]),
-            "message": "The kill switch is engaged and the account is flat.",
+            "message": "The kill switch is engaged."
+            + ("" if unanswered else " The account is flat."),
         }
 
     def _events(self, request: Json) -> list[Json]:

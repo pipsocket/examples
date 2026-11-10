@@ -38,10 +38,11 @@ jobs:
           done
       - run: npm ci
       - run: npm run lint
-      - name: TypeScript examples type-check
+      - name: TypeScript examples type-check, and no known vulnerable dependencies
         run: |
+          npm audit --audit-level=high
           for project in node/*/; do
-            (cd "$project" && npm ci && npx tsc --noEmit)
+            (cd "$project" && npm ci && npx tsc --noEmit && npm audit --audit-level=high)
           done
       - name: Workflows
         run: |

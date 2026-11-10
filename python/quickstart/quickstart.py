@@ -1,7 +1,8 @@
 """Read a demo account, buy the smallest volume a symbol allows, handle the outcome, close it.
 
-It trades only on an account whose trade mode is demo, and only ever closes the position its own
-order opened (found by this script's magic number).
+It trades only on a hedging account whose trade mode is demo, and only ever closes the position its
+own order opened (found by this script's magic number). It won't buy while an earlier run's
+position or order is still on the account.
 """
 
 from __future__ import annotations
@@ -113,10 +114,22 @@ def main() -> None:
             f"This account's trade mode is {account.get('trade_mode')!r}. "
             "The quickstart trades only on demo accounts."
         )
+    if account.get("margin_mode") != "hedging":
+        # On a netting account a position holds every trade's volume on its symbol, so closing
+        # "this script's" position would close other trades too.
+        stop("The quickstart trades only hedging accounts.")
     if account["status"] != "connected" or not account.get("trade_allowed"):
         stop("The account isn't ready to trade: it must be connected with trading allowed.")
 
     settle_journal(acct)
+    # A position or order from an earlier run (one that crashed, or settled late) comes first.
+    leftovers = [p["ticket"] for p in acct.positions.list() if p["magic"] == MAGIC]
+    leftovers += [o["ticket"] for o in acct.orders.list() if o["magic"] == MAGIC]
+    if leftovers:
+        stop(
+            f"An earlier run left {leftovers} with magic {MAGIC} on the account. "
+            "Close it in the dashboard, then run again."
+        )
 
     # A filling mode and a volume the symbol allows: MT5 rejects an order with any other. A
     # market order can use fok or ioc.
@@ -128,13 +141,6 @@ def main() -> None:
         stop(f"{SYMBOL} can't be bought and sold now (trading: {symbol.get('trading')}).")
     volume = symbol["volume_min"]
     needs_price = symbol.get("execution") in ("instant", "request")
-
-    # On a netting account an order on a symbol that already has a position changes that
-    # position, which this script didn't open.
-    if account.get("margin_mode") != "hedging" and any(
-        position["symbol"] == SYMBOL for position in acct.positions.list()
-    ):
-        stop(f"This is a netting account with a position on {SYMBOL} already: not touching it.")
 
     price = acct.symbols.tick(SYMBOL)["ask"] if needs_price else None
     order = send(
@@ -190,11 +196,19 @@ def main() -> None:
                 idempotency_key=key,
             ),
         )
-        if closed.accepted and closed.result["deal"]:
-            print(f"Closed position {position['ticket']}: deal {closed.result['deal']}")
-        else:
-            print(f"Position {position['ticket']} not closed: {closed.state} {closed.message}")
+        if not (closed.accepted and closed.result["deal"]):
+            stop(f"Position {position['ticket']} not closed: {closed.state} {closed.message}")
+        # A deal can close part of it: read the account again rather than assume.
+        left = [p for p in acct.positions.list() if p["ticket"] == position["ticket"]]
+        if left:
+            stop(f"Position {position['ticket']} is only partly closed: {left[0]['volume']} left.")
+        print(f"Closed position {position['ticket']}: deal {closed.result['deal']}")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        for entry in open_entries():
+            print(f"May still execute: {entry['intent']} (key {entry['key']})", file=sys.stderr)
+        sys.exit(130)

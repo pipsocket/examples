@@ -74,9 +74,21 @@ def test_streams_prices_and_fills_and_starts_again_from_a_resync_after_a_gap(
     running.wait_for("resync (reconnected): 0 positions, 0 pending orders")
     running.wait_for("ticks and events from the gap are not sent again")
     running.wait_for("EURUSD bid")  # the tick set was sent again on the new connection
+    mock.push({"type": "deal", "deal": deal})
+    mock.push({"type": "deal", "deal": deal | {"ticket": 7004}})
+    line = running.wait_for("deal: ")
+    assert "7004" in line  # the same deal again is a duplicate
+
+    # Another login on the account: its tickets are a different series, so 7003 is a new deal.
+    mock.broker.account["login"] = 5058427999
+    mock.drop_streams()
+    running.wait_for("the account is now login 5058427999")
+    running.wait_for("resync (reconnected)")
+    mock.push({"type": "deal", "deal": deal})
+    running.wait_for("deal: 7003")
     stopped = running.interrupt()
 
     assert stopped.code == 0, stopped.output
     assert "stopped" in stopped.stdout
-    assert mock.upgrades == 2
+    assert mock.upgrades == 3
     assert mock.trades() == []

@@ -2,12 +2,12 @@
 
 A loop that reads a price, asks a signal what to hold, and trades a demo account to match. The signal, `decide()`, is a toy breakout: replace it with your own. What's around it is the part to keep.
 
-- **Demo only.** It stops before doing anything unless the account's `trade_mode` is `demo`.
+- **Demo and hedging only, checked before every trade.** It stops before doing anything unless the account's `trade_mode` is `demo` and it is a hedging account, and reads the account again before each trade and before engaging the kill switch: if it stops being demo, or its login or server changes, the bot stops.
 - **One small position.** It holds at most one position, of the symbol's `volume_min`, with a filling mode the symbol allows (`fok` or `ioc`).
-- **Its own trades only.** Its orders carry magic number `7310`, and it only ever closes positions that carry it. A position it opened in an earlier run is picked up again; your other trades are left alone. On a netting account where someone else has a position on the symbol, it won't trade.
-- **Save, then send.** Each trade's key comes from `pipsocket.new_key()` and is written to `bot-journal.jsonl` before the trade is sent, and its outcome after. On start it settles what an earlier run left open: a request it has an id for is looked up with `requests.wait`; a trade whose answer never came back stops the bot until you have checked the account.
-- **Pending is followed, never resent.** A `pending` trade is followed with `requests.wait`, which only looks it up. If a trade still has no outcome, or the client's retries ran out without an answer (`OutcomeUnknown`), the bot stops rather than trade on top of it.
-- **Nothing destructive on exit, unless you ask.** On exit (Ctrl+C, `--steps` done, or a stop) it leaves its position as it is and says so.
+- **Its own trades only.** Its orders carry magic number `7310`, and it only ever closes positions that carry it. A position it opened in an earlier run is picked up again; your other trades are left alone.
+- **Save, then send, one run at a time.** Each trade's key comes from `pipsocket.new_key()` and is written to `bot-journal.jsonl` before the trade is sent, and its outcome after. A lock file keeps a second run in the same folder from using the journal at the same time. On start it settles what an earlier run left open: a request it has an id for is looked up with `requests.wait`; a trade whose answer never came back stops the bot until you have checked the account.
+- **Anything but a plain fill stops it.** A `pending` trade is followed with `requests.wait`, which only looks it up. If a trade then has no outcome, was rejected, was taken without a deal, filled only in part, or was settled by hand, or the client's retries ran out without an answer (`OutcomeUnknown`), the bot stops rather than trade on top of it.
+- **Nothing destructive on exit, unless you ask.** On exit (Ctrl+C, `--steps` done, or a stop) it leaves its position as it is, says so, and lists any trade that may still execute.
 
 ### The kill switch on exit
 
@@ -42,3 +42,5 @@ With `--kill-switch-on-exit`, the last lines are:
 Engaging the kill switch: every position and pending order on the account is closed.
 Kill switch engaged. Flat: True. Lift it in the dashboard or the API.
 ```
+
+MetaTrader is a trademark of MetaQuotes Ltd. Pipsocket is not affiliated with MetaQuotes.

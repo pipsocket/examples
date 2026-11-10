@@ -5,7 +5,7 @@ Keeps the account's WebSocket stream open with the SDK's helper (`acct.stream(..
 The helper reconnects by itself and, after every connect and every gap, yields a `resync` event: the account, positions and pending orders read over REST once the stream was live, and the deals from history since the last checkpoint. The script:
 
 - **Treats a `resync` as the new baseline.** It replaces its own copy of the positions and pending orders with the snapshot. `None` means unknown (the terminal isn't running), which is not the same as none.
-- **Treats every other event as a notice.** A `deal` event can be older than the baseline, so it is never added to or taken from the snapshot. Deals are deduplicated by ticket.
+- **Treats every other event as a notice.** A `deal` event can be older than the baseline, so it is never added to or taken from the snapshot. Deals are deduplicated by ticket, and the tickets seen are forgotten when the account's login or server changes, as the new one numbers its own.
 - **Says what a gap loses.** Ticks and events from the gap are not sent again. The resync's snapshot and its `history` (best effort, or `None` with `history_reason`) cover what changed. For a trade you are waiting on, `acct.requests.wait(id)` looks it up.
 
 ## Run it
@@ -31,3 +31,5 @@ EURUSD bid 1.0844 ask 1.08442
 ```
 
 See [the WebSocket stream](https://docs.pipsocket.com/websocket) in the docs.
+
+MetaTrader is a trademark of MetaQuotes Ltd. Pipsocket is not affiliated with MetaQuotes.

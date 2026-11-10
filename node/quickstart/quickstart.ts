@@ -1,7 +1,8 @@
 // Read a demo account, buy the smallest volume a symbol allows, handle the outcome, close it.
 //
-// It trades only on an account whose trade mode is demo, and only ever closes the position its
-// own order opened (found by this script's magic number).
+// It trades only on a hedging account whose trade mode is demo, and only ever closes the position
+// its own order opened (found by this script's magic number). It won't buy while an earlier run's
+// position or order is still on the account.
 
 import { appendFileSync, closeSync, existsSync, fsyncSync, openSync, readFileSync } from "node:fs";
 import {
@@ -131,11 +132,32 @@ if (account.trade_mode !== "demo") {
     `This account's trade mode is ${JSON.stringify(account.trade_mode)}. The quickstart trades only on demo accounts.`,
   );
 }
+if (account.margin_mode !== "hedging") {
+  // On a netting account a position holds every trade's volume on its symbol, so closing "this
+  // script's" position would close other trades too.
+  stop("The quickstart trades only hedging accounts.");
+}
 if (account.status !== "connected" || !account.trade_allowed) {
   stop("The account isn't ready to trade: it must be connected with trading allowed.");
 }
 
+// Ctrl+C: say what may still execute. The journal keeps it for the next run.
+process.once("SIGINT", () => {
+  for (const entry of openEntries()) console.error(`May still execute: ${entry.intent} (key ${entry.key})`);
+  process.exit(130);
+});
+
 await settleJournal(acct);
+// A position or order from an earlier run (one that crashed, or settled late) comes first.
+const leftovers = [
+  ...(await acct.positions.list()).filter((p) => p.magic === MAGIC).map((p) => p.ticket),
+  ...(await acct.orders.list()).filter((o) => o.magic === MAGIC).map((o) => o.ticket),
+];
+if (leftovers.length > 0) {
+  stop(
+    `An earlier run left ${leftovers.join(", ")} with magic ${MAGIC} on the account. Close it in the dashboard, then run again.`,
+  );
+}
 
 // A filling mode and a volume the symbol allows: MT5 rejects an order with any other. A market
 // order can use fok or ioc.
@@ -145,12 +167,6 @@ if (!filling) stop(`${SYMBOL} allows neither fok nor ioc (${symbol.filling_modes
 if (symbol.trading !== "full") stop(`${SYMBOL} can't be bought and sold now (trading: ${symbol.trading}).`);
 const volume = symbol.volume_min;
 const needsPrice = symbol.execution === "instant" || symbol.execution === "request";
-
-// On a netting account an order on a symbol that already has a position changes that position,
-// which this script didn't open.
-if (account.margin_mode !== "hedging" && (await acct.positions.list()).some((p) => p.symbol === SYMBOL)) {
-  stop(`This is a netting account with a position on ${SYMBOL} already: not touching it.`);
-}
 
 const buyPrice = needsPrice ? { price: (await acct.symbols.tick(SYMBOL)).ask, deviation: DEVIATION } : {};
 const order = await send(acct, `buy ${volume} ${SYMBOL}`, (key) =>
@@ -186,11 +202,11 @@ switch (order.kind) {
         ),
       );
       const deal = closed.kind === "completed" || closed.kind === "partial" ? closed.result.deal : 0;
-      if (deal !== 0) {
-        console.log(`Closed position ${position.ticket}: deal ${deal}`);
-      } else {
-        console.log(`Position ${position.ticket} not closed: ${closed.state} ${closed.message}`);
-      }
+      if (deal === 0) stop(`Position ${position.ticket} not closed: ${closed.state} ${closed.message}`);
+      // A deal can close part of it: read the account again rather than assume.
+      const left = (await acct.positions.list()).find((p) => p.ticket === position.ticket);
+      if (left) stop(`Position ${position.ticket} is only partly closed: ${left.volume} left.`);
+      console.log(`Closed position ${position.ticket}: deal ${deal}`);
     }
     break;
   }

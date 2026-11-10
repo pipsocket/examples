@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import pathlib
 from collections.abc import Callable
 
+import httpx
 import pytest
 from conftest import Run
-from mock_pipsocket import MockPipsocket, symbol_spec
+from mock_pipsocket import ACCOUNT, KEY, MockPipsocket, symbol_spec
 from safety import check_trades
 
 MAGIC = 4021
@@ -144,28 +147,92 @@ def test_sends_a_price_where_the_symbol_executes_on_request(
     assert close.body["price"] == 1.0845
 
 
-def test_on_a_netting_account_leaves_an_existing_position_alone(
-    mock: MockPipsocket, quickstart: Callable[..., Run]
-) -> None:
+def test_refuses_a_netting_account(mock: MockPipsocket, quickstart: Callable[..., Run]) -> None:
     mock.broker.account["margin_mode"] = "netting"
-    mock.broker.positions.append(
-        {
-            "comment": "",
-            "identifier": 7001,
-            "magic": 0,
-            "price_open": 1.08,
-            "sl": 0,
-            "symbol": "EURUSD",
-            "ticket": 7001,
-            "time_msc": 1794067801211,
-            "tp": 0,
-            "type": "buy",
-            "volume": 0.5,
-        }
-    )
 
     result = quickstart()
 
     assert result.code != 0
-    assert "netting" in result.stderr
+    assert "only hedging accounts" in result.stderr
     assert mock.trades() == []
+
+
+def test_finds_an_order_whose_answer_was_lost_with_the_same_key(
+    mock: MockPipsocket, quickstart: Callable[..., Run]
+) -> None:
+    mock.broker.plan = ["executed_then_lost"]
+
+    result = quickstart()
+
+    assert result.code == 0, result.output
+    check_trades(mock, MAGIC)
+    first, retry, close = mock.trades()
+    assert first.status == 503 and retry.status == 200
+    assert (retry.key, retry.body) == (first.key, first.body)
+    assert close.path.endswith(f"/positions/{retry.answer['result']['order']}/close")
+    assert mock.broker.positions == []
+
+
+def test_closes_what_a_partial_fill_opened(
+    mock: MockPipsocket, quickstart: Callable[..., Run]
+) -> None:
+    mock.broker.symbols["EURUSD"] = symbol_spec(volume_min=0.02, volume_step=0.01)
+    mock.broker.plan = ["partial"]
+
+    result = quickstart()
+
+    assert result.code == 0, result.output
+    check_trades(mock, MAGIC)
+    _, close = mock.trades()
+    assert close.body["volume"] == 0.01
+    assert mock.broker.positions == []
+
+
+def test_says_so_when_a_close_only_partly_fills(
+    mock: MockPipsocket, quickstart: Callable[..., Run]
+) -> None:
+    mock.broker.symbols["EURUSD"] = symbol_spec(volume_min=0.02, volume_step=0.01)
+    mock.broker.plan = ["fill", "partial"]
+
+    result = quickstart()
+
+    assert result.code != 0
+    assert "only partly closed: 0.01 left" in result.stderr
+    check_trades(mock, MAGIC)
+
+
+def test_an_earlier_runs_position_blocks_a_new_buy(
+    mock: MockPipsocket, quickstart: Callable[..., Run], tmp_path: pathlib.Path
+) -> None:
+    # An earlier run's buy was pending when it stopped; it fills while this run settles it.
+    mock.broker.plan = ["pending_forever"]
+    place = httpx.post(
+        f"{mock.base_url}/v1/accounts/{ACCOUNT}/orders",
+        headers={"Authorization": f"Bearer {KEY}", "Idempotency-Key": "earlier-run-key-0001"},
+        json={
+            "symbol": "EURUSD",
+            "type": "buy",
+            "volume": 0.01,
+            "type_filling": "ioc",
+            "magic": MAGIC,
+        },
+    )
+    assert place.status_code == 202
+    request_id = place.json()["request"]
+    mock.broker.plan = []
+    mock.broker.settles_after[request_id] = 1
+    journal = tmp_path / "quickstart-journal.jsonl"
+    entries = [
+        {"key": "earlier-run-key-0001", "intent": "buy 0.01 EURUSD"},
+        {"key": "earlier-run-key-0001", "request": request_id, "state": "pending", "final": False},
+    ]
+    journal.write_text("".join(json.dumps(entry) + "\n" for entry in entries))
+    mock.calls.clear()
+
+    result = quickstart()
+
+    assert result.code != 0
+    assert f"An earlier trade settled: {request_id} completed" in result.stdout
+    assert "An earlier run left" in result.stderr
+    assert mock.trades() == []
+    assert len(mock.broker.positions) == 1  # left for the owner to look at, not closed blindly
