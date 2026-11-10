@@ -1,0 +1,12 @@
+{
+  "name": "pipsocket-examples",
+  "private": true,
+  "description": "Lint for the TypeScript examples. Each example has its own package.json.",
+  "scripts": {
+    "lint": "biome ci .",
+    "format": "biome check --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.6"
+  }
+}

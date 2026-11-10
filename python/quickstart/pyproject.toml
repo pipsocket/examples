@@ -1,0 +1,9 @@
+[project]
+name = "pipsocket-quickstart"
+version = "0"
+description = "Read a demo account, place the smallest order, handle its outcome and close it."
+requires-python = ">=3.10"
+dependencies = ["pipsocket==0.1.0"]
+
+[tool.uv]
+package = false

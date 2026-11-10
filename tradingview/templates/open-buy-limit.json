@@ -1,0 +1,13 @@
+{
+  "action": "open",
+  "src": "p4d8",
+  "event_id": "p4d8-pullback-{{exchange}}:{{ticker}}-{{interval}}-open-buy-{{time}}",
+  "sent_at": "{{timenow}}",
+  "symbol": "{{exchange}}:{{ticker}}",
+  "side": "buy",
+  "tag": "pullback",
+  "lots": 0.01,
+  "entry": { "type": "limit", "offset_pips": 15, "expires": "day" },
+  "sl": { "pips": 30 },
+  "tp": { "pips": 60 }
+}

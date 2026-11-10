@@ -1,0 +1,21 @@
+{
+  "name": "pipsocket-stream-ticks",
+  "private": true,
+  "description": "Prices and fills as they happen, with reconnects and resyncs.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env stream-ticks.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pipsocket": "0.1.0",
+    "ws": "8.22.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  }
+}

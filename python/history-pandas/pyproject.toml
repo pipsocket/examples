@@ -1,0 +1,9 @@
+[project]
+name = "pipsocket-history-pandas"
+version = "0"
+description = "An account's deals in a pandas DataFrame, over a range of broker server time."
+requires-python = ">=3.10"
+dependencies = ["pipsocket==0.1.0", "pandas==2.3.3"]
+
+[tool.uv]
+package = false

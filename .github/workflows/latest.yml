@@ -1,0 +1,59 @@
+name: Latest SDKs
+
+# Every day, and on demand: install the newest published pipsocket packages into every example and
+# run them against the mock, checked against the newest published API document. Opens an issue
+# when they break, so the examples never rot quietly.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  latest:
+    name: Examples on the latest SDKs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - run: uv sync --locked
+      - name: Install the latest SDKs into every example
+        id: install
+        run: |
+          for project in python/*/; do
+            uv add --project "$project" --no-sync --upgrade-package pipsocket "pipsocket>=0"
+          done
+          for project in node/*/; do
+            (cd "$project" && npm ci && npm install --save-exact pipsocket@latest)
+          done
+          python_version=$(uv run --project python/quickstart python -c "import pipsocket; print(pipsocket.__version__)")
+          node_version=$(node -p "require('./node/quickstart/node_modules/pipsocket/package.json').version")
+          echo "versions=pipsocket $python_version (PyPI), pipsocket $node_version (npm)" >> "$GITHUB_OUTPUT"
+      - name: The published API document, for the mock to check its answers against
+        run: uv run python tests/snapshot_openapi.py
+      - name: Run the examples against the mock
+        run: uv run pytest
+      - name: Open an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSIONS: ${{ steps.install.outputs.versions }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="The examples fail on the latest SDKs"
+          if [ -z "$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[].number')" ]; then
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "The scheduled run against the mock failed with ${VERSIONS:-the latest packages}. See $RUN_URL."
+          fi
