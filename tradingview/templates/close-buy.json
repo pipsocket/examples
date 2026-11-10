@@ -1,0 +1,9 @@
+{
+  "action": "close",
+  "src": "q7m2",
+  "event_id": "q7m2-ema-{{exchange}}:{{ticker}}-{{interval}}-close-buy-{{time}}",
+  "sent_at": "{{timenow}}",
+  "symbol": "{{exchange}}:{{ticker}}",
+  "side": "buy",
+  "tag": "ema"
+}

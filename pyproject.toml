@@ -1,0 +1,43 @@
+[project]
+name = "pipsocket-examples-tests"
+version = "0"
+description = "Runs every example against a local mock of the Pipsocket API."
+requires-python = ">=3.10"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "aiohttp==3.14.5",
+  "jsonschema==4.26.0",
+  "pytest==9.2.0",
+  "ruff==0.17.4",
+  "pyright==1.1.414",
+  # The examples' own dependencies, so pyright can check them from here.
+  "pipsocket==0.1.0",
+  "pandas==2.3.3",
+  "pandas-stubs==2.3.3.260113",
+  "httpx==0.28.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["node"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pyright]
+include = ["python", "tradingview", "tests"]
+exclude = ["**/.venv", "**/node_modules"]
+typeCheckingMode = "standard"
+# Strict for the examples, which are what people copy.
+strict = ["python", "tradingview"]
+pythonVersion = "3.10"

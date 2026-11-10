@@ -1,0 +1,19 @@
+{
+  "name": "pipsocket-worker",
+  "private": true,
+  "description": "A Cloudflare Worker that reads a Pipsocket account on a schedule and logs a report.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pipsocket": "0.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261110.1",
+    "typescript": "5.9.3",
+    "wrangler": "4.159.0"
+  }
+}

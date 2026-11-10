@@ -1,0 +1,12 @@
+{
+  "action": "open",
+  "src": "q7m2",
+  "event_id": "q7m2-ema-{{exchange}}:{{ticker}}-{{interval}}-open-buy-{{time}}",
+  "sent_at": "{{timenow}}",
+  "symbol": "{{exchange}}:{{ticker}}",
+  "side": "buy",
+  "tag": "ema",
+  "risk": { "percent": 1 },
+  "sl": { "pips": 25 },
+  "tp": { "pips": 50 }
+}

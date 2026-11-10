@@ -1,0 +1,7 @@
+{
+  "action": "close_all",
+  "src": "c2z6",
+  "event_id": "c2z6-ema-{{exchange}}:{{ticker}}-{{interval}}-close_all-{{time}}",
+  "sent_at": "{{timenow}}",
+  "tag": "ema"
+}

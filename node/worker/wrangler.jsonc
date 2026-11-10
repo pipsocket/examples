@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pipsocket-account-report",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // Every 15 minutes. Cron triggers run in UTC.
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "vars": {
+    // Your account's id, from the dashboard's API key page.
+    "PIPSOCKET_ACCOUNT": "acc_01m6tx3k9f2qw8r7bznd5yvh4c"
+  },
+  // Keeps the Worker's logs, where each report is a line.
+  "observability": { "enabled": true }
+}
